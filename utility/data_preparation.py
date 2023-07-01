@@ -48,7 +48,7 @@ with open('../dataset/polyvore_outfits/disjoint/train.json') as json_file:
 # display_outfits(train_outfit_cleaned)
 
 # repeat the same for validation and test sets
-with open('../dataset/polyvore_outfits/disjoint/val.json') as json_file:
+with open('../dataset/polyvore_outfits/disjoint/valid.json') as json_file:
     validation_outfit = json.load(json_file)
     print(pd.DataFrame(data=validation_outfit,columns=['items','set_id']).head()) # shows first 5 rows of the dataset
 
