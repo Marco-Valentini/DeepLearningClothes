@@ -6,21 +6,69 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.transforms import transforms
 
-# Define the data transformations
+device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
+
+# This code expects data to be in same format as Imagenet.
+# Thus, the dataset has three folds, named 'train', 'val' and 'test'.
+# The 'train' folder contains training set and 'val' folder contains validation set on which accuracy is measured.
+# The 'test' folder is used for testing the pre-trained model.
+
+# The structure within 'train', 'val' and 'test' folders will be the same.
+# They both contain one folder per class. All the images of that class are inside the folder named by class name.
+
+# So, the structure looks like this :
+# |- data_cnn_fine_tuning
+#      |- train
+#            |- accessories
+#                 |- accessory_image_1
+#                 |- accessory_image_2
+#                        .....
+#            |- bottoms
+#                 |- bottom_image_1
+#                 |- bottom_image_2
+#                        .....
+#            |- shoes
+#                 |- shoes_image_1
+#                 |- shoes_image_2
+#                        .....
+#            |- tops
+#                 |- top_image_1
+#                 |- top_image_2
+#                        .....
+#      |- val
+#            |- accessories
+#            |- bottoms
+#            |- shoes
+#            |- tops
+#      |- test
+#            |- accessories
+#            |- bottoms
+#            |- shoes
+#            |- tops
+
+# data loading and shuffling/augmentation/normalization.
+# Normalization is a common technique in computer vision which helps the network to converge faster.
+# The mean and standard deviation values are taken from Imagenet dataset.
+
 data_transforms = {
-    'train': transforms.Compose([
-        transforms.RandomResizedCrop(224),  # crop the image to 224x224
-        transforms.RandomHorizontalFlip(),  # randomly flip image horizontally
-        transforms.ToTensor(),  # convert the image to a tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
-    ]),
-    'val': transforms.Compose([
+    'train': transforms.Compose(
+        [  # For training, the data gets transformed by undergoing augmentation and normalization.
+            transforms.RandomResizedCrop(224),  # takes a crop of an image at various scales between 0.01 to 0.8 times
+            # the size of the image and resizes it to given number
+            transforms.RandomHorizontalFlip(),
+            # randomly flip image horizontally, it is a common technique in computer
+            # vision to augment the size of your data set. Firstly, it increases the number of times the network gets to
+            # see the same thing, and secondly it adds rotational invariance to your networks learning.
+            transforms.ToTensor(),  # convert the image to a tensor
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
+        ]),
+    'val': transforms.Compose([  # Just normalization for validation, no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor(),  # convert the image to a tensor
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
     ]),
-    'test': transforms.Compose([
+    'test': transforms.Compose([  # Just Resizing for testing, no normalization and no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor()  # convert the image to a tensor
@@ -39,7 +87,7 @@ image_datasets = {
     'test': ImageFolder(val_dir, transform=data_transforms['test'])
 }
 
-# Create data loaders for training and ivalidation
+# Create data loaders for training and validation
 dataloaders = {
     'train': DataLoader(image_datasets['train'], batch_size=32, shuffle=True, num_workers=0),
     'val': DataLoader(image_datasets['val'], batch_size=32, shuffle=False, num_workers=0),
@@ -47,87 +95,126 @@ dataloaders = {
 }
 
 # Load the pre-trained ResNet18 model and modify the last fully connected layer
-weights = ResNet18_Weights.IMAGENET1K_V1   # use the weights trained on ImageNet
+weights = ResNet18_Weights.IMAGENET1K_V1  # use the weights trained on ImageNet
 model = resnet18(weights=weights)  # load the model
 
-# Freeze all the parameters of the pre-trained model
-for param in model.parameters():
-    param.requires_grad = False
 
-# Freeze the first quarter parameters of the pre-trained model
-# for param in model.parameters()[:int(len(model.parameters()) / 4)]:
-#     param.requires_grad = False
+# freeze the given number of layers of the given model
+def freeze(model, n=None):
+    """
+    this function freezes the given number of layers of the given model in order to fine-tune it.
+    :param model: the model to be frozen
+    :param n: the number of layers to be frozen, if None, all the layers are frozen
+    :return: the frozen model
+    """
+    if n is None:
+        for param in model.parameters():
+            param.requires_grad = False
+    else:
+        count = 0
+        for param in model.parameters():
+            if count < n:
+                param.requires_grad = False
+            count += 1
 
 
+# Define the loss function and optimizer to be used
+criterion = nn.CrossEntropyLoss()  # loss function (categorical cross-entropy)
+optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer (stochastic gradient descent)
+num_epochs = 20 # number of epochs to train the model
+num_classes = 4  # number of classes in the dataset (4 in our case)
 
-# Get the number of input features for the last fully connected layer
-num_features = model.fc.in_features
+# fine-tune the model
+def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_classes, device, num_epochs=20):
+    """
+    This function fine-tunes the given model using the given optimizer and loss function for the given number of epochs.
+    :param model: the model to be fine-tuned
+    :param optimizer: the optimizer to be used
+    :param criterion: the loss function to be used
+    :param dataloaders: the data loaders to be used
+    :param num_classes: the number of classes in the dataset
+    :param device: the device to be used
+    :param num_epochs: the number of epochs to train the model
+    :return: the fine-tuned model
+    """
+    # Get the number of input features for the last fully connected layer
+    num_features = model.fc.in_features
 
-# Modify the last fully connected layer to have the desired number of classes
-num_classes = 4
-model.fc = torch.nn.Linear(num_features, num_classes)
+    # Modify the last fully connected layer to have the desired number of classes
+    model.fc = torch.nn.Linear(num_features, num_classes)
 
-# Define the loss function and optimizer
-criterion = nn.CrossEntropyLoss()  # loss function
-optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer
+    # freeze parameters of the pre-trained model
+    # To freeze a specific number of layers, pass the number as the second argument
+    freezer(model, n=None)
 
-# Fine-tune the model
-device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
-model = model.to(device)  # move the model to the device
+    model = model.to(device)  # move the model to the device
 
-epochs = 20
-for epoch in range(epochs):
-    for phase in ['train', 'val']:  # train and validate the model
-        if phase == 'train':
-            model.train()  # set model to training mode
-        else:
-            model.eval()   # set model to evaluate mode
+    for epoch in range(num_epochs):
+        for phase in ['train', 'val']:  # train and validate the model
+            if phase == 'train':
+                model.train()  # set model to training mode
+            else:
+                model.eval()  # set model to evaluate mode
 
-        running_loss = 0.0  # keep track of the loss
-        correct = 0  # keep track of the number of correct predictions
+            running_loss = 0.0  # keep track of the loss
+            correct = 0  # keep track of the number of correct predictions
 
-        for inputs, labels in dataloaders[phase]:  # iterate over the data
-            inputs = inputs.to(device)  # move the input images to the device
-            labels = labels.to(device)  # move the labels to the device
+            for inputs, labels in dataloaders[phase]:  # iterate over the data
+                inputs = inputs.to(device)  # move the input images to the device
+                labels = labels.to(device)  # move the labels to the device
 
-            optimizer.zero_grad()  # zero the parameter gradients
+                optimizer.zero_grad()  # zero the parameter gradients
 
-            with torch.set_grad_enabled(phase == 'train'):  # only calculate the gradients if training
-                outputs = model(inputs)  # forward pass
-                loss = criterion(outputs, labels)  # calculate the loss
+                with torch.set_grad_enabled(phase == 'train'):  # only calculate the gradients if training
+                    outputs = model(inputs)  # forward pass
+                    loss = criterion(outputs, labels)  # calculate the loss
 
-                if phase == 'train':  # backward pass + optimize only if training
-                    loss.backward()  # calculate the gradients
-                    optimizer.step()   # update the weights
+                    if phase == 'train':  # backward pass + optimize only if training
+                        loss.backward()  # calculate the gradients
+                        optimizer.step()  # update the weights
 
-            running_loss += loss.item() * inputs.size(0)  # update the loss
-            _, preds = torch.max(outputs, 1)  # get the predicted classes
-            correct += torch.sum(preds == labels.data)  # update the number of correct predictions
+                running_loss += loss.item() * inputs.size(0)  # update the loss
+                _, preds = torch.max(outputs, 1)  # get the predicted classes
+                correct += torch.sum(preds == labels.data)  # update the number of correct predictions
 
-        epoch_loss = running_loss / len(image_datasets[phase])  # calculate the average loss
-        epoch_acc = correct / len(image_datasets[phase])  # calculate the accuracy
+            epoch_loss = running_loss / len(image_datasets[phase])  # calculate the average loss
+            epoch_acc = correct / len(image_datasets[phase])  # calculate the accuracy
 
-        print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}')
+            print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}')
+            return model
+
 
 # test the model
-model.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for inputs, labels in dataloaders['test']:
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+def test_model(model, dataloader, device=device):
+    """
+    This function tests the given model using the given data loaders.
+    :param model: the model to be tested
+    :param dataloaders: the data loaders to be used
+    :param device: the device to be used
+    :return: None
+    """
+    model.eval()
+    with torch.no_grad():
+        correct = 0
+        total = 0
+        for inputs, labels in dataloader:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
 
-        outputs = model(inputs)
-        _, preds = torch.max(outputs, 1)
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
 
-        total += labels.size(0)
-        correct += (preds == labels).sum().item()
+            total += labels.size(0)
+            correct += (preds == labels).sum().item()
 
-    print(f'Accuracy: {correct / total}')
+        print(f'Accuracy: {correct / total}')
+
+
+# fine-tune the model
+model = fine_tune_model(model, freeze, optimizer, criterion, dataloaders, num_classes, device, num_epochs)
+
+# test the model
+test_model(model, dataloaders['test'])
 
 # save the model
 torch.save(model.state_dict(), 'models/finetuned_fashion_resnet18.pth')
-
-
-
