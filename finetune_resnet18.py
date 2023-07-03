@@ -1,4 +1,5 @@
 import torch
+from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from torchvision.models import ResNet18_Weights, resnet18
@@ -71,7 +72,8 @@ data_transforms = {
     'test': transforms.Compose([  # Just Resizing for testing, no normalization and no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
-        transforms.ToTensor()  # convert the image to a tensor
+        transforms.ToTensor(),  # convert the image to a tensor
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
     ])
 }
 
@@ -121,7 +123,7 @@ def freeze(model, n=None):
 # Define the loss function and optimizer to be used
 criterion = nn.CrossEntropyLoss()  # loss function (categorical cross-entropy)
 optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer (stochastic gradient descent)
-num_epochs = 20 # number of epochs to train the model
+num_epochs = 20  # number of epochs to train the model
 num_classes = 4  # number of classes in the dataset (4 in our case)
 
 # fine-tune the model
@@ -145,12 +147,13 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_class
 
     # freeze parameters of the pre-trained model
     # To freeze a specific number of layers, pass the number as the second argument
-    freezer(model, n=None)
+    freezer(model, n=25)
 
     model = model.to(device)  # move the model to the device
 
     for epoch in range(num_epochs):
         for phase in ['train', 'val']:  # train and validate the model
+            print(f'Epoch: {epoch + 1}/{num_epochs} | Phase: {phase}')
             if phase == 'train':
                 model.train()  # set model to training mode
             else:
@@ -180,12 +183,14 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_class
             epoch_loss = running_loss / len(image_datasets[phase])  # calculate the average loss
             epoch_acc = correct / len(image_datasets[phase])  # calculate the accuracy
 
-            print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}')
-            return model
+            # compute  precision, recall and F1 score
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.data.cpu().numpy(), preds.cpu().numpy(), average='macro')
+            print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
+    return model
 
 
 # test the model
-def test_model(model, dataloader, device=device):
+def test_model(model, dataloader, device):
     """
     This function tests the given model using the given data loaders.
     :param model: the model to be tested
@@ -193,28 +198,29 @@ def test_model(model, dataloader, device=device):
     :param device: the device to be used
     :return: None
     """
-    model.eval()
-    with torch.no_grad():
+    model.eval()  # set model to evaluate mode
+    with torch.no_grad():  # disable gradient calculation
         correct = 0
         total = 0
-        for inputs, labels in dataloader:
+        for inputs, labels in dataloader:  # iterate over the data
             inputs = inputs.to(device)
             labels = labels.to(device)
 
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
+            outputs = model(inputs)  # forward pass
+            _, preds = torch.max(outputs, 1)  # get the predicted classes
 
-            total += labels.size(0)
-            correct += (preds == labels).sum().item()
+            total += labels.size(0)  # update the total number of images
+            correct += (preds == labels).sum().item()  # update the number of correct predictions
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.data.cpu().numpy(), preds.cpu().numpy(), average='macro', zero_division=0)
 
-        print(f'Accuracy: {correct / total}')
+        print(f'Accuracy: {correct / total}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
 
 
 # fine-tune the model
 model = fine_tune_model(model, freeze, optimizer, criterion, dataloaders, num_classes, device, num_epochs)
 
 # test the model
-test_model(model, dataloaders['test'])
+test_model(model, dataloaders['test'], device)
 
 # save the model
 torch.save(model.state_dict(), 'models/finetuned_fashion_resnet18.pth')
