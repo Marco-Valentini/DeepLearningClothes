@@ -12,7 +12,7 @@ def display_items(df_reduced):
     fig = plt.figure(figsize=(25,20))
     images=[]
     for idx in range(10):
-        image = cv2.imread('../dataset/polyvore_outfits/images/' + indeces[idx] + '.jpg')
+        image = cv2.imread('../dataset/images/' + indeces[idx] + '.jpg')
         rgbImg = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(rgbImg)
 
@@ -28,16 +28,16 @@ def display_outfits(outfits):
     for i in range(5):
         images = []
         clothes_list = outfits[i]['item_id']
-        img1 = cv2.imread('../dataset/polyvore_outfits/images/' + clothes_list[0] + '.jpg')
+        img1 = cv2.imread('../dataset/images/' + clothes_list[0] + '.jpg')
         rgbImg1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
         images.append(rgbImg1)
-        img2 = cv2.imread('../dataset/polyvore_outfits/images/' + clothes_list[1] + '.jpg')
+        img2 = cv2.imread('../dataset/images/' + clothes_list[1] + '.jpg')
         rgbImg2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
         images.append(rgbImg2)
-        img3 = cv2.imread('../dataset/polyvore_outfits/images/' + clothes_list[2] + '.jpg')
+        img3 = cv2.imread('../dataset/images/' + clothes_list[2] + '.jpg')
         rgbImg3 = cv2.cvtColor(img3, cv2.COLOR_BGR2RGB)
         images.append(rgbImg3)
-        img4 = cv2.imread('../dataset/polyvore_outfits/images/' + clothes_list[3] + '.jpg')
+        img4 = cv2.imread('../dataset/images/' + clothes_list[3] + '.jpg')
         rgbImg4 = cv2.cvtColor(img4, cv2.COLOR_BGR2RGB)
         images.append(rgbImg4)
         fig = plt.figure(figsize=(25, 20))

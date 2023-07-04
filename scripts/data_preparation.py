@@ -5,7 +5,7 @@ from utility.filter_outfit import filter_outfit
 from display import *
 
 # read the dataset information from the json
-with open('../dataset/polyvore_outfits/polyvore_item_metadata.json') as json_file:
+with open('../dataset/polyvore_item_metadata.json') as json_file:
     data = json.load(json_file)
     print(pd.DataFrame(data=data.values(), index=data.keys()).head())  # shows first 5 rows of the dataset
 
@@ -36,7 +36,7 @@ df_reduced.to_csv(catalogue_path, index=False)
 print(df_reduced.value_counts(
     'Semantic_category'))  # this dataset will be used to compute the embeddings of the single items
 
-with open('../dataset/polyvore_outfits/disjoint/train.json') as json_file:
+with open('../dataset/disjoint/train.json') as json_file:
     train_outfit = json.load(json_file)
     print(pd.DataFrame(data=train_outfit,columns=['items','set_id']).head()) # shows first 5 rows of the dataset
 
@@ -48,7 +48,7 @@ train_outfit_cleaned = [filter_outfit(outfit, df_reduced) for outfit in train_ou
 display_outfits(train_outfit_cleaned)
 
 # repeat the same for validation and test sets
-with open('../dataset/polyvore_outfits/disjoint/valid.json') as json_file:
+with open('../dataset/disjoint/valid.json') as json_file:
     validation_outfit = json.load(json_file)
     print(pd.DataFrame(data=validation_outfit,columns=['items','set_id']).head()) # shows first 5 rows of the dataset
 
@@ -57,7 +57,7 @@ validation_outfit_cleaned = [filter_outfit(outfit, df_reduced) for outfit in val
                         filter_outfit(outfit, df_reduced)]
 
 # repeat the same for validation and test sets
-with open('../dataset/polyvore_outfits/disjoint/test.json') as json_file:
+with open('../dataset/disjoint/test.json') as json_file:
     test_outfit = json.load(json_file)
     print(pd.DataFrame(data=test_outfit,columns=['items','set_id']).head()) # shows first 5 rows of the dataset
 
