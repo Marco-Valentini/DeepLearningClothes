@@ -78,7 +78,7 @@ data_transforms = {
 }
 
 # Set the paths to your training and validation data folders
-data_dir = './dataset_cnn_fine_tuning'
+data_dir = '../dataset_cnn_fine_tuning'
 train_dir = data_dir + '/train'
 val_dir = data_dir + '/val'
 
@@ -223,4 +223,4 @@ model = fine_tune_model(model, freeze, optimizer, criterion, dataloaders, num_cl
 test_model(model, dataloaders['test'], device)
 
 # save the model
-torch.save(model.state_dict(), 'models/finetuned_fashion_resnet18.pth')
+torch.save(model.state_dict(), '../models/finetuned_fashion_resnet18.pth')

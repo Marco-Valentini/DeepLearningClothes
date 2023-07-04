@@ -168,3 +168,4 @@ vcs.xml
 #.idea/
 .DS_Store
 /dataset_cnn_fine_tuning/
+/dataset_catalogue/
