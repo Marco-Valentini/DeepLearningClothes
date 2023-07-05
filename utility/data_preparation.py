@@ -41,11 +41,11 @@ with open('../dataset/polyvore_outfits/disjoint/train.json') as json_file:
     print(pd.DataFrame(data=train_outfit,columns=['items','set_id']).head()) # shows first 5 rows of the dataset
 
 # extract from the outfit dataset only the ones which respect the given conditions
-# train_outfit_cleaned = [filter_outfit(outfit, df_reduced) for outfit in train_outfit if
-#                         filter_outfit(outfit, df_reduced)]
+train_outfit_cleaned = [filter_outfit(outfit, df_reduced) for outfit in train_outfit if
+                        filter_outfit(outfit, df_reduced)]
 
 # show some results
-# display_outfits(train_outfit_cleaned)
+display_outfits(train_outfit_cleaned)
 
 # repeat the same for validation and test sets
 with open('../dataset/polyvore_outfits/disjoint/valid.json') as json_file:

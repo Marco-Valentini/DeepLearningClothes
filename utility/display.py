@@ -46,3 +46,35 @@ def display_outfits(outfits):
             ax.set_title(clothes_list[idx])
             plt.imshow(images[idx])
         plt.show()
+
+def display_single_outfit(ID_list):
+    # passa 3 o 4 immagini a seconda che stiamo mostrando le 3 della query o le 4 predette
+    images = []
+    img1 = cv2.imread('../dataset/polyvore_outfits/images/' + ID_list[0] + '.jpg')
+    rgbImg1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+    images.append(rgbImg1)
+    img2 = cv2.imread('../dataset/polyvore_outfits/images/' + ID_list[1] + '.jpg')
+    rgbImg2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+    images.append(rgbImg2)
+    img3 = cv2.imread('../dataset/polyvore_outfits/images/' + ID_list[2] + '.jpg')
+    rgbImg3 = cv2.cvtColor(img3, cv2.COLOR_BGR2RGB)
+    images.append(rgbImg3)
+    if ID_list[3]:
+        img4 = cv2.imread('../dataset/polyvore_outfits/images/' + ID_list[3] + '.jpg')
+        rgbImg4 = cv2.cvtColor(img4, cv2.COLOR_BGR2RGB)
+        images.append(rgbImg4)
+        fig = plt.figure(figsize=(25, 20))
+        for idx in range(4):
+            ax = fig.add_subplot(1, int(4), idx + 1, xticks=[], yticks=[])
+            ax.set_title(ID_list[idx])
+            plt.imshow(images[idx])
+        plt.show()
+    else:
+        fig = plt.figure(figsize=(25, 20))
+        for idx in range(3):
+            ax = fig.add_subplot(1, int(4), idx + 1, xticks=[], yticks=[])
+            ax.set_title(ID_list[idx])
+            plt.imshow(images[idx])
+        plt.show()
+
+
