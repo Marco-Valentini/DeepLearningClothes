@@ -9,18 +9,27 @@ import json
 
 # define the required functions
 def retrieve_item(set_id_n):
-    if set_id_n is None:
+    """
+    Given a set_id_n, returns the item_id of the corresponding item in the catalogue
+    :param set_id_n: set_id_n of the item
+    :return: item_id of the item
+    """
+    if set_id_n is None:  # if it is None (due to previous padding reasons)
         return None
-    if set_id_n in ['0', '1']:
+    if set_id_n in ['0', '1']:  # if it is a compatibility value
         return set_id_n
-    # set id n must be a string
-    set_id, item_idx = set_id_n.split('_')
-    outfit = [outfit['items'] for outfit in set_json if outfit['set_id'] == set_id][0]
-    item_id = [item['item_id'] for item in outfit if item['index'] == int(item_idx)][0]
+    set_id, item_idx = set_id_n.split('_')  # split the set_id_n into set_id and item_idx
+    outfit = [outfit['items'] for outfit in set_json if outfit['set_id'] == set_id][0]  # retrieve the outfit
+    item_id = [item['item_id'] for item in outfit if item['index'] == int(item_idx)][0]  # retrieve the item_id
     return item_id
 
 
 def count_not_null(array):
+    """
+    Given an array, returns the number of not null elements
+    :param array: array to be analyzed
+    :return: number of not null elements
+    """
     count = 0
     for el in array:
         if el is not None:
@@ -29,49 +38,61 @@ def count_not_null(array):
 
 
 def is_in_categories(item_id):
-    # TODO scrivi la doc
+    """
+    Given an item_id, returns True if the item belongs to the categories ['tops','bottoms','accessories','shoes']
+    :param item_id: item_id to be analyzed
+    :return: True if the item belongs to the categories ['tops','bottoms','accessories','shoes'], False otherwise
+    """
     if item_id is None:
         # if it is None (due to previous padding reasons)
         return None
-    if item_id in ['0', '1']:
+    if item_id in ['0', '1']:  # if it is a compatibility value
         return item_id
-    if int(item_id) not in catalogue['ID'].values:
+    if int(item_id) not in catalogue['ID'].values:  # if the item_id is not in the catalogue
         return None
     else:
         return item_id
 
 
 def remove_and_compact(df):
-    df_tmp = df.drop(columns='compatibility')
-    df_new = pd.DataFrame(np.zeros((df_tmp.shape[0], 4)), columns=df_tmp.columns[:4])
-    compatibility = df['compatibility'].values
-    for i in range(df_tmp.shape[0]):
-        row = df_tmp.loc[i]
-        filtered_row = [el for el in row.values if el is not None]
+    """
+    Given a dataframe, removes the rows containing None values and compact the dataframe.
+    :param df: dataframe to be compacted.
+    :return: compacted dataframe.
+    """
+    df_tmp = df.drop(columns='compatibility')  # remove the compatibility column
+    df_new = pd.DataFrame(np.zeros((df_tmp.shape[0], 4)), columns=df_tmp.columns[:4])  # create a new dataframe
+    compatibility = df['compatibility'].values  # retrieve the compatibility values
+    for i in range(df_tmp.shape[0]):  # for each row
+        row = df_tmp.loc[i]  # retrieve the row
+        filtered_row = [el for el in row.values if el is not None]  # remove the None values
+        # if there are more than 4 elements remove the elements belonging to the same category
         if len(filtered_row) > 4:
             clothes = []
             categories = []
             for item in filtered_row:
-                idx = list(catalogue['ID']).index(int(item))
-                category = catalogue['Semantic_category'].values[idx]
-                if category not in categories:
+                idx = list(catalogue['ID']).index(int(item))  # retrieve the index of the item in the catalogue
+                category = catalogue['Semantic_category'].values[idx]  # retrieve the category of the item
+                if category not in categories:  # if the category is not already in the list
                     categories.append(category)
                     clothes.append(item)
-            if len(clothes) < 4:
-                filtered_row = [None, None, None, None]
+            if len(clothes) < 4:  # if after the process there are less than 4 elements
+                filtered_row = [None, None, None, None]  # substitute with None values (will be dropped later)
             else:
-                filtered_row = clothes
-        df_new.loc[i] = filtered_row
-    df_new.insert(0, column='compatibility', value=compatibility, allow_duplicates=True)
-    df_new = df_new.dropna(axis=0)
-    df_new.reset_index(inplace=True, drop=True)
+                filtered_row = clothes  # otherwise substitute with the new list
+        df_new.loc[i] = filtered_row  # insert the filtered row in the new dataframe
+    df_new.insert(0, column='compatibility', value=compatibility,
+                  allow_duplicates=True)  # insert the compatibility column
+    df_new = df_new.dropna(axis=0)  # drop the rows containing None values
+    df_new.reset_index(inplace=True, drop=True)  # reset the index
     return df_new
+
 
 # import the catalogue ID-Category
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
 
-for data_set in ['train', 'test', 'valid']:
-    # read the data from the .txt file
+for data_set in ['train', 'test', 'valid']:  # for each data set apply the following operations
+    # read the data from the <train, test, valid>.txt file
     path = f'../dataset/disjoint/compatibility_{data_set}.txt'
     with open(path) as file:
         data = file.read()
@@ -129,5 +150,6 @@ for data_set in ['train', 'test', 'valid']:
     value_counts = df['compatibility']
     print(f"Proportion of negative/positive samples {value_counts}")
 
+    # save the reduced dataset
     destination_path = f'../reduced_data/reduced_compatibility_{data_set}.csv'
     df.to_csv(destination_path, index=False)
