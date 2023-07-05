@@ -147,7 +147,7 @@ for data_set in ['train', 'test', 'valid']:  # for each data set apply the follo
     # remove the None and compact
     df = remove_and_compact(df)
     # check if the classes are balanced or not
-    value_counts = df['compatibility']
+    value_counts = df['compatibility'].value_counts()
     print(f"Proportion of negative/positive samples {value_counts}")
 
     # save the reduced dataset

@@ -26,6 +26,8 @@ class umBERT(nn.Module):
         ), num_layers=num_encoders)  # the encoder stack is a transformer encoder stack
         self.ffnn = nn.Linear(d_model, catalogue_size)  # the output of the transformer is fed to a linear layer
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
+        # first task of pre-training #TODO check this later
+        self.Binary_Classifier = nn.Linear(d_model, 2)
 
     def forward(self, outfit):
         """
@@ -33,7 +35,7 @@ class umBERT(nn.Module):
         :param outfit: the outfit embedding
         :return: the logits
         """
-        return self.ffnn(self.encoder_stack(outfit))
+        return self.encoder_stack(outfit)
 
     def predict(self, test_outfit):
         """
@@ -41,17 +43,21 @@ class umBERT(nn.Module):
         :param test_outfit: the outfit embedding
         :return: the probability distribution over the catalogue
         """
-        return self.softmax(self.forward(test_outfit))  # returns the probability distribution (in
+        return self.softmax(self.ffnn(self.forward(test_outfit)))  # returns the probability distribution (in
         # the main will choose the related item)
 
     def pre_train_LM(self, optimizer, criterion, trainloader, labels,
                      n_epochs=500):  # TODO create together trainloader and labels
+
         for epoch in range(n_epochs):
             optimizer.zero_grad()
             output = self.forward(trainloader)
+            clf = self.Binary_Classifier(output) # just a linear because the criterion is the cross entropy loss
             # compute loss in masked language task
             loss = criterion(output, labels)
             # compute the gradients
             loss.backward()
             # update the parameters
             optimizer.step()
+    def predict_LM(self,test_set):
+        return self.softmax(self.Binary_Classifier(self.forward(test_set)))
