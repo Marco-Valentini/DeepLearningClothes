@@ -63,8 +63,8 @@ def remove_and_compact(df):
                 filtered_row = clothes
         df_new.loc[i] = filtered_row
     df_new.insert(0, column='compatibility', value=compatibility, allow_duplicates=True)
-    df_new.dropna(axis=0)
-    df.reset_index(inplace=True, drop=True)
+    df_new = df_new.dropna(axis=0)
+    df_new.reset_index(inplace=True, drop=True)
     return df_new
 
 # import the catalogue ID-Category
