@@ -82,9 +82,10 @@ for data_set in ['train', 'test', 'valid']:
     # obtain an element for each word in each line
     data = [line.split(' ') for line in data]
     # convert into pandas DataFrame
-    labels = 'compatibility item_1 item_2 item_3 item_4 item_5 item_6 item_7 item_8 item_9 item_10 item_11 item_12 item_13 item_14'
+    max_len = max([len(line) for line in data])  # max number of items in an outfit
+    labels = ['compatibility'] + ['item_' + str(i) for i in range(1, max_len)]
 
-    df = pd.DataFrame(data, columns=labels.split(), index=[i for i in range(len(data))])
+    df = pd.DataFrame(data, columns=labels, index=[i for i in range(len(data))])
 
     with open(f'../dataset/disjoint/{data_set}.json') as file:
         set_json = json.load(file)
