@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 import torch
@@ -7,6 +9,9 @@ import torch.nn as nn
 from torchvision.transforms import transforms
 from utility.image_to_embedding import image_to_embedding
 from utility.custom_image_dataset import CustomImageDataset
+
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # use GPU if available
 device = torch.device("mps" if torch.has_mps else "cpu")

@@ -1,3 +1,5 @@
+import os
+
 import torch
 from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader
@@ -6,6 +8,8 @@ from torchvision.models import ResNet18_Weights, resnet18
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.transforms import transforms
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
 

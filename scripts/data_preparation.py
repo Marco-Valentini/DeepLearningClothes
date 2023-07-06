@@ -1,8 +1,13 @@
 # import the required libraries
 import json
+import os
+
 import pandas as pd
 from utility.filter_outfit import filter_outfit
-from display import *
+from utility.display import *
+
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # read the dataset information from the json
 with open('../dataset/polyvore_item_metadata.json') as json_file:

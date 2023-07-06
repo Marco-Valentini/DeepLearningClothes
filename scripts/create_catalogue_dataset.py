@@ -1,6 +1,9 @@
 import os
 import pandas as pd
 from PIL import Image
+
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 '''
 this python script takes images from a catalogue and move them in the folder 'dataset_catalogue'
 '''

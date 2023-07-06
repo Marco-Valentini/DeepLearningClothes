@@ -2,6 +2,10 @@ import os
 import pandas as pd
 from PIL import Image
 from sklearn.model_selection import train_test_split
+
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 '''
 this python script takes a dataset of images, 
 splits it into train, val and test sets 

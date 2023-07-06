@@ -14,9 +14,11 @@ from utility.custom_image_dataset import CustomImageDataset
 from utility.create_tensor_dataset_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 import numpy as np
 
-np.random.seed(42)
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-print(os.getcwd())
+np.random.seed(42)  # for reproducibility
+
 # use GPU if available
 device = torch.device("mps" if torch.has_mps else "cpu")
 
@@ -25,7 +27,7 @@ catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the cat
 # first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
 
 # load the model finetuned_fashion_resnet18.pth
-fashion_resnet18 = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+fashion_resnet18 = resnet18()
 num_ftrs = fashion_resnet18.fc.in_features  # get the number of input features for the last fully connected layer
 fashion_resnet18.fc = nn.Linear(num_ftrs,
                                 4)  # modify the last fully connected layer to have the desired number of classes
