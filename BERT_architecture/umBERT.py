@@ -53,7 +53,7 @@ class umBERT(nn.Module):
             print(f'Epoch of training: {epoch}, percentage {epoch/n_epochs*100}%')
             optimizer.zero_grad()
             output = self.forward(trainloader)
-            clf = self.Binary_Classifier(output[0,:,:]) # just a linear because the criterion is the cross entropy loss
+            clf = self.Binary_Classifier(output[0,:,:])  # just a linear because the criterion is the cross entropy loss
             # compute loss in masked language task
             loss = criterion(clf, labels)
             # compute the gradients

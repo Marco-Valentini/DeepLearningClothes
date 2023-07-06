@@ -50,7 +50,7 @@ dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=False, num_worker
 embeddings, labels, IDs = image_to_embedding(dataloaders, fashion_resnet18, device)
 
 # create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
-CLS = np.random.rand(1, embeddings.shape[1])
+CLS = np.random.rand(1, embeddings.shape[1])  #TODO controlla seed resti lo stesso
 MASK = np.random.rand(1, embeddings.shape[1])
 
 
@@ -83,3 +83,6 @@ test_set = create_tensor_dataset_for_BC_from_dataframe(test_set, embeddings, IDs
 
 optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01)
 model.pre_train_LM()
+
+# save the model into a checkpoint file
+torch.save(model.state_dict(), '../models/umBERT_pretrained.pth')
