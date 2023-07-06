@@ -7,6 +7,7 @@ from torchvision.datasets import ImageFolder
 from torchvision.models import resnet18, ResNet18_Weights
 import torch.nn as nn
 from torchvision.transforms import transforms
+from torch.optim import Adam
 
 from utility.image_to_embedding import image_to_embedding
 from utility.custom_image_dataset import CustomImageDataset
@@ -40,7 +41,12 @@ dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=False, num_worker
 embeddings, labels, indexes = image_to_embedding(dataloaders, fashion_resnet18, device)
 
 # define the umBERT model
-umBERT = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0, dim_feedforward=None)
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0, dim_feedforward=None)
 
-# prepare the data for the umBERT model
-print()
+# import the training set
+train_set = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
+compatibility = train_set['compatibility']
+train_set.drop(columns='compatibility',inplace=True)
+
+optimizer = Adam(params=model.parameters(),lr=1e-4,betas=(0.9,0.999),weight_decay=0.01)
+model.pre_train_LM()
