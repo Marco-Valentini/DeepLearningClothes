@@ -78,8 +78,27 @@ class umBERT(nn.Module):
             optimizer.step()
 
 
-    def pre_train_BERT_like(self, optimizer, criterion, trainloader, labels, n_epochs=500):
-        pass
+    def pre_train_BERT_like(self, optimizer, criterion, trainloader, labels_classification, labels_ids, masked_positions, n_epochs=500):
+        # labels_ids sono le posizioni dei vestiti nel catalogo, precedentemente calcolate da masking input
+        for epoch in range(n_epochs):
+            print(f'Epoch of training: {epoch}, percentage {epoch/n_epochs*100}%')
+            optimizer.zero_grad()
+            output = self.forward(trainloader)
+            masked_elements = torch.gather(output,0,masked_positions)
+            # predict the masked embedding (MASK)
+            logits = self.ffnn(masked_elements) # just a linear because the criterion is the cross entropy loss
+            # compute loss in masked language task
+            loss_MLM = criterion(logits, labels_ids)
+            # classify the outfit (CLS)
+            clf = self.Binary_Classifier(output[0,:,:]) # just a linear because the criterion is the cross entropy loss, applied on the CLS embedding
+            # compute loss in binary classification task
+            loss_BC = criterion(clf, labels_classification)
+            # compute the gradients
+            loss = loss_MLM.mean() + loss_BC.mean()
+            loss.backward()
+            # update the parameters
+            optimizer.step()
+
     def predict_BC(self,test_set):
         return self.softmax(self.Binary_Classifier(self.forward(test_set))) # says if the input outfit is compatible or not
 
