@@ -4,8 +4,7 @@ import numpy as np
 
 np.random.seed(42)
 
-def create_tensor_dataset_from_dataframe(df_outfit:pd.DataFrame,embeddings:torch.Tensor,ids):
-    CLS = np.random.rand(1, embeddings.shape[1])
+def create_tensor_dataset_for_BC_from_dataframe(df_outfit:pd.DataFrame, embeddings:torch.Tensor, ids, CLS):
     dataset = np.zeros((5,embeddings.shape[1],df_outfit.shape[0]))
     for i in range(df_outfit.shape[0]):
         for j in range(df_outfit.shape[1]+1):

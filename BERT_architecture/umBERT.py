@@ -39,25 +39,49 @@ class umBERT(nn.Module):
 
     def predict(self, test_outfit):
         """
-        This function takes as input an outfit and returns the probability distribution over the catalogue
+        This function takes as input an outfit and returns the probability distribution over the catalogue (after fine-tuning)
         :param test_outfit: the outfit embedding
         :return: the probability distribution over the catalogue
         """
         return self.softmax(self.ffnn(self.forward(test_outfit)))  # returns the probability distribution (in
         # the main will choose the related item)
 
-    def pre_train_LM(self, optimizer, criterion, trainloader, labels,
+    def pre_train_BC(self, optimizer, criterion, trainloader, labels,
                      n_epochs=500):  # TODO create together trainloader and labels
 
         for epoch in range(n_epochs):
+            print(f'Epoch of training: {epoch}, percentage {epoch/n_epochs*100}%')
             optimizer.zero_grad()
             output = self.forward(trainloader)
-            clf = self.Binary_Classifier(output) # just a linear because the criterion is the cross entropy loss
+            clf = self.Binary_Classifier(output[0,:,:]) # just a linear because the criterion is the cross entropy loss
             # compute loss in masked language task
-            loss = criterion(output, labels)
+            loss = criterion(clf, labels)
             # compute the gradients
             loss.backward()
             # update the parameters
             optimizer.step()
-    def predict_LM(self,test_set):
-        return self.softmax(self.Binary_Classifier(self.forward(test_set)))
+
+    def pre_train_MLM(self, optimizer, criterion, trainloader, labels, masked_positions,
+                     n_epochs=500): # labels sono le posizioni dei vestiti nel catalogo, precedentemente calcolate da masking input
+
+        for epoch in range(n_epochs):
+            print(f'Epoch of training: {epoch}, percentage {epoch/n_epochs*100}%')
+            optimizer.zero_grad()
+            output = self.forward(trainloader)
+            masked_elements = torch.gather(output,0,masked_positions)
+            logits = self.ffnn(masked_elements) # just a linear because the criterion is the cross entropy loss
+            # compute loss in masked language task
+            loss = criterion(logits, labels)
+            # compute the gradients
+            loss.backward()
+            # update the parameters
+            optimizer.step()
+
+
+    def pre_train_BERT_like(self, optimizer, criterion, trainloader, labels, n_epochs=500):
+        pass
+    def predict_BC(self,test_set):
+        return self.softmax(self.Binary_Classifier(self.forward(test_set))) # says if the input outfit is compatible or not
+
+    def predict_MLM(self,test_set):
+        return self.softmax(self.ffnn(self.forward(test_set))) # says which is the masket item
