@@ -1,5 +1,4 @@
 from BERT_architecture.umBERT import umBERT
-
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
@@ -14,6 +13,7 @@ from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_da
 from utility.masking_input import masking_input
 import numpy as np
 from torch.nn import CrossEntropyLoss
+from utility.umBERT_trainer import umBERT_trainer
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -60,7 +60,6 @@ print('Done!')
 # define the umBERT model
 model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0,
                dim_feedforward=None)
-model.to(device)  # set the model to run on the device
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
@@ -124,9 +123,9 @@ optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_
 criterion = CrossEntropyLoss()
 
 print('Start pre-training the model')
-model.pre_train_BERT_like(optimizer=optimizer, criterion=criterion, dataloaders=dataloaders,
-                          labels_classification=compatibility, labels_ids=masked_labels,
-                          masked_positions=masked_indices, device=device, n_epochs=100)
+
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion, device=device, n_epochs=100)
+trainer.pre_train_BERT_like(dataloaders=dataloaders, labels_classification=compatibility, labels_ids=masked_labels, masked_positions=masked_indices)
 print('Pre-training completed')
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_jointly.pth')

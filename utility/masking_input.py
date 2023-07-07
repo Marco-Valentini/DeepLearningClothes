@@ -14,7 +14,7 @@ def masking_input(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, wi
     :param MASK: the embedding token MASK (a tensor of shape (1, 768))
     :param with_CLS: if True, the CLS token is preserved, otherwise it is removed from the tensor (default: True)
     :return: the outfit with a masked item (a tensor of shape (4, 768, n_outfits)),
-    the indexes of the masked items (a tensor of shape (n_outfits, 2))
+    the indexes of the masked items (a tensor of shape (n_outfits, n_masked_items)),
     and the labels of the masked items (a list of length n_outfits)
     """
     CLS = outfit[0, :, :]  # CLS is the first element of the tensor, preserve it
@@ -27,7 +27,7 @@ def masking_input(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, wi
         outfit_labels = outfit_dataframe.loc[i].values  # get the labels of the items in the outfit
         masked_idx = random.randrange(0, 4)  # choose a random item to mask
         # save the index of the masked item
-        masked_indexes.append([i, masked_idx])
+        masked_indexes.append(masked_idx)
         label = list(catalogue['ID'].values).index(
             outfit_labels[masked_idx])  # label is the position of the masked item in the catalogue
         labels.append(label)  # save the label of the masked item
@@ -42,8 +42,7 @@ def masking_input(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, wi
     if with_CLS:
         outfit = torch.cat((CLS.unsqueeze(0), outfit), dim=0)  # add CLS to the tensor
         # add 1 to the indexes because of CLS
-        masked_indexes = [[x[0], x[1] + 1] for x in masked_indexes]
-
+        masked_indexes = [x + 1 for x in masked_indexes]
 
     # transpose the tensor dataset to have the batch dimension first (as required by the model)
     outfit = outfit.transpose(0, 1)
@@ -51,7 +50,5 @@ def masking_input(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, wi
     # the masked item in the outfit. For example, [[0, 1], [1, 2]] means that the first outfit has the second item
     # masked, and the second outfit has the third item masked.
     # we will use masked_indexes to retrieve the embeddings of the masked items from the output of the model using
-    # the gather function, so we need to convert it to a tensor of shape (n_outfits, masked_idx)
-    masked_indexes = torch.LongTensor(masked_indexes)
-
+    # the gather function, so we need to convert it to a tensor of the same shape of the outfit tensor
     return outfit, masked_indexes, labels
