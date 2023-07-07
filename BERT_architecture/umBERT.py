@@ -16,7 +16,8 @@ class umBERT(nn.Module):
             nhead=num_heads,
             dim_feedforward=self.dim_feedforward,
             dropout=self.dropout,
-            activation="gelu"
+            activation="gelu",
+            batch_first=True  # Set batch_first to True
         ), num_layers=num_encoders)  # the encoder stack is a transformer encoder stack
         self.ffnn = nn.Linear(d_model, catalogue_size)  # the output of the transformer is fed to a linear layer
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
@@ -164,7 +165,7 @@ class umBERT(nn.Module):
                     with torch.set_grad_enabled(
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.forward(inputs)  # compute the output of the model (forward pass)
-                        masked_elements = torch.gather(output, 0, masked_positions[phase])  # select the masked elements
+                        masked_elements = torch.gather(output, 1, masked_positions[phase])  # select the masked elements
                         logits = self.ffnn(masked_elements)  # compute the logits of the MLM task
                         loss_MLM = criterion(logits, labels_ids[phase])  # compute the loss of the MLM task
                         clf = self.Binary_Classifier(output[0, :, :])  # compute the logits of the classification task

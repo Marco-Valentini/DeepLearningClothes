@@ -15,17 +15,14 @@ from utility.masking_input import masking_input
 import numpy as np
 from torch.nn import CrossEntropyLoss
 
-os.environ['MTL_VALIDATE_METAL_COMMANDS'] = 'NO'  # disable metal validation to avoid errors
-os.environ['MTL_CAPTURE_METAL_COMMANDS'] = '0'  # disable metal capture to avoid errors
-
-
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 np.random.seed(42)  # for reproducibility
 
 # use GPU if available
-device = torch.device("mps" if torch.has_mps else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
+print('Using device:', device)
 
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the catalogue
 
@@ -63,6 +60,7 @@ print('Done!')
 # define the umBERT model
 model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0,
                dim_feedforward=None)
+model.to(device)  # set the model to run on the device
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
@@ -74,8 +72,8 @@ print('Creating the tensor dataset for the training set...')
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
-training_set, masked_indices_train, masked_labels_train = masking_input(training_set, train_dataframe,
-                                                                        MASK)  # mask the input
+training_set, masked_indexes_train, masked_labels_train = masking_input(training_set, train_dataframe, MASK)
+
 # create the dataloader for the training set
 print('Creating the dataloader for the training set...')
 trainloader = DataLoader(training_set, batch_size=32, shuffle=False, num_workers=0)
@@ -91,7 +89,8 @@ print('Creating the tensor dataset for the validation set...')
 validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, embeddings, IDs, CLS)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
-validation_set, masked_indices_valid, masked_labels_valid = masking_input(validation_set, valid_dataframe, MASK)
+validation_set, masked_indexes_valid, masked_labels_valid = masking_input(validation_set, valid_dataframe, MASK)
+
 # create the dataloader for the validation set
 print('Creating the dataloader for the validation set...')
 validloader = DataLoader(validation_set, batch_size=32, shuffle=False, num_workers=0)
@@ -100,7 +99,7 @@ print('Done!')
 # create the dictionary containing the dataloaders, the masked indices, the masked labels and the compatibility labels
 # for the training and validation set
 dataloaders = {'train': trainloader, 'val': validloader}
-masked_indices = {'train': masked_indices_train, 'val': masked_indices_valid}
+masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
 masked_labels = {'train': masked_labels_train, 'val': masked_labels_valid}
 compatibility = {'train': compatibility_train, 'val': compatibility_valid}
 
@@ -114,7 +113,8 @@ print('Creating the tensor dataset for the test set...')
 test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
-test_set, masked_indices_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
+test_set, masked_indexes_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
+
 # create the dataloader for the test set
 print('Creating the dataloader for the test set...')
 testloader = DataLoader(test_set, batch_size=32, shuffle=False, num_workers=0)

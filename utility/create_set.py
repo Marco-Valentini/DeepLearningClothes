@@ -1,9 +1,14 @@
-# TODO import embeddings di ogni ID #TODO creare catalogo embeddings json chiave id e valore embedding
 import torch
 import json
-import pandas as pd
 
 def create_set(json_path,embedding_size):
+    """
+    This function takes as input a json file containing the outfits and the embedding size.
+    It returns a tensor of shape (n_outfits, 4, embedding_size) containing the embeddings of the items in the outfit.
+    :param json_path: the path of the json file containing the outfits
+    :param embedding_size: the embedding size of the items
+    :return: a tensor of shape (n_outfits, 4, embedding_size) containing the embeddings of the items in the outfit
+    """
     with open(json_path) as json_file:
         data = json.load(json_file)
     n_outfits = len(data)
