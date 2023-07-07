@@ -24,10 +24,12 @@ np.random.seed(42)  # for reproducibility
 device = torch.device("mps" if torch.has_mps else "cpu")
 
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the catalogue
+print("Catalogue loaded")
 
 # first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
 
 # load the model finetuned_fashion_resnet18.pth
+print("Loading the model finetuned_fashion_resnet18.pth")
 fashion_resnet18 = resnet18()
 num_ftrs = fashion_resnet18.fc.in_features  # get the number of input features for the last fully connected layer
 fashion_resnet18.fc = nn.Linear(num_ftrs,
@@ -36,6 +38,10 @@ fashion_resnet18.load_state_dict(torch.load(
     '../models/finetuned_fashion_resnet18.pth'))  # load the weights of the model finetuned_fashion_resnet18.pth
 fashion_resnet18.eval()  # set the model to evaluation mode
 fashion_resnet18.to(device)  # set the model to run on the device
+
+print("Model loaded")
+
+print("Loading the image dataset")
 
 # load the dataset (just for now, we will use the test dataset)
 data_transform = transforms.Compose([  # define the transformations to be applied to the images
@@ -46,9 +52,13 @@ data_dir = '../dataset_catalogue'  # define the directory of the dataset
 image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
 
 dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=False, num_workers=0)  # create the dataloader
+print("Dataset loaded")
 
+print("Computing the embeddings of the dataset")
 # get the embeddings of the dataset, the labels and the ids
 embeddings, labels, IDs = image_to_embedding(dataloaders, fashion_resnet18, device)
+
+print("Embeddings computed")
 
 # create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
 CLS = np.random.rand(1, embeddings.shape[1])  # TODO controlla seed resti lo stesso
@@ -95,13 +105,14 @@ optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_
 
 criterion_1 = nn.BCELoss
 
-model.pre_train_BC(optimizer,criterion_1,trainloader_BC,compatibility_train,n_epochs=100)
+model.pre_train_BC(optimizer, criterion_1, trainloader_BC, compatibility_train, n_epochs=100)
 
 torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 
 criterion_2 = nn.CrossEntropyLoss
 
-model.pre_train_MLM(optimizer,criterion_2,trainloader_MLM,actual_masked_values_train,masked_positions_train,n_epochs=100)
+model.pre_train_MLM(optimizer, criterion_2, trainloader_MLM, actual_masked_values_train, masked_positions_train,
+                    n_epochs=100)
 
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_2.pth')
