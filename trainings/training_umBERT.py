@@ -14,6 +14,7 @@ from utility.custom_image_dataset import CustomImageDataset
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 import numpy as np
 from utility.masking_input import masking_input
+from utility.umBERT_trainer import umBERT_trainer
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -77,11 +78,13 @@ train_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the training set")
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
-trainloader_BC = DataLoader(training_set.transpose(0,1), batch_size=8, num_workers=0, shuffle=False)
-print("Training set for binary classifiation created")
+training_dataset_BC = torch.utils.data.TensorDataset(training_set.transpose(0,1), torch.Tensor(compatibility_train))
+trainloader_BC = DataLoader(training_dataset_BC, batch_size=8, num_workers=0, shuffle=False)
+print("Training set for binary classification created")
 training_set_MLM, masked_positions_train, actual_masked_values_train = masking_input(training_set, train_dataframe,
                                                                                      MASK, with_CLS=False)
-trainloader_MLM = DataLoader(training_set_MLM, batch_size=8, num_workers=0, shuffle=False)
+training_dataset_MLM = torch.utils.data.TensorDataset(training_set_MLM, torch.Tensor(actual_masked_values_train))
+trainloader_MLM = DataLoader(training_dataset_MLM, batch_size=8, num_workers=0, shuffle=False)
 print("Training set for masked language model created")
 
 # import the validation set
@@ -91,11 +94,13 @@ valid_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the validation set")
 validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, embeddings, IDs, CLS)
-validloader_BC = DataLoader(validation_set.transpose(0,1), batch_size=8, num_workers=0, shuffle=False)
+vallidation_dataset_BC = torch.utils.data.TensorDataset(validation_set.transpose(0,1), torch.Tensor(compatibility_valid))
+validloader_BC = DataLoader(vallidation_dataset_BC, batch_size=8, num_workers=0, shuffle=False)
 print("Validation set for binary classifiation created")
 validation_set_MLM, masked_positions_valid, actual_masked_values_valid = masking_input(validation_set, valid_dataframe,
                                                                                        MASK, with_CLS=False)
-validloader_MLM = DataLoader(validation_set_MLM, batch_size=8, num_workers=0, shuffle=False)
+validation_dataset_MLM = torch.utils.data.TensorDataset(validation_set_MLM, torch.Tensor(actual_masked_values_valid))
+validloader_MLM = DataLoader(validation_dataset_MLM, batch_size=8, num_workers=0, shuffle=False)
 print("Validation set for masked language model created")
 
 # import the test set
@@ -106,33 +111,40 @@ test_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the test set")
 test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
-testloader_BC = DataLoader(test_set.transpose(0,1), batch_size=8, num_workers=0, shuffle=False)
+test_dataset_BC = torch.utils.data.TensorDataset(test_set.transpose(0,1), torch.Tensor(compatibility_test))
+testloader_BC = DataLoader(test_dataset_BC, batch_size=8, num_workers=0, shuffle=False)
 print("Test set for binary classifiation created")
 test_set_MLM, masked_positions_test, actual_masked_values_test = masking_input(test_set, test_dataframe, MASK,
                                                                                with_CLS=False)
-testloader_MLM = DataLoader(test_set_MLM, batch_size=8, num_workers=0, shuffle=False)
+test_dataset_MLM = torch.utils.data.TensorDataset(test_set_MLM, torch.Tensor(actual_masked_values_test))
+testloader_MLM = DataLoader(test_dataset_MLM, batch_size=8, num_workers=0, shuffle=False)
 print("Test set for masked language model created")
 
 # create the dictionary to work with modularity
 dataloaders_BC = {'train': trainloader_BC, 'val': validloader_BC}
 dataloaders_MLM = {'train': trainloader_MLM, 'val': validloader_MLM}
-masked_indices = {'train': masked_positions_train, 'val': masked_positions_valid}
-masked_labels = {'train': actual_masked_values_train, 'val': actual_masked_values_valid}
-compatibility = {'train': compatibility_train, 'val': compatibility_valid}
+masked_indices = {'train': masked_positions_train, 'val': masked_positions_valid} # questo qui dovrebbe servire ancora
+# masked_labels = {'train': actual_masked_values_train, 'val': actual_masked_values_valid}
+# compatibility = {'train': compatibility_train, 'val': compatibility_valid}
 # define the optimizer
 optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01)
 # put the model on the GPU
 model.to(device)
 criterion_1 = nn.BCELoss()
 
-model.pre_train_BC(optimizer, criterion_1, dataloaders_BC, compatibility, n_epochs=100,device=device)
+print('Start pre-training BC the model')
+
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=100)
+trainer.pre_train_BC(dataloaders=dataloaders_BC)
+print('Pre-training on BC completed')
 
 torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 
 criterion_2 = nn.CrossEntropyLoss()
-
-model.pre_train_MLM(optimizer, criterion_2, dataloaders_MLM, masked_labels, masked_indices,
-                    n_epochs=100,device=device)
+trainer.criterion = criterion_2
+print('Start pre-training MLM the model')
+trainer.pre_train_MLM(dataloaders=dataloaders_MLM,masked_positions=masked_indices)
+print('Pre-training on MLM completed')
 
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_2.pth')

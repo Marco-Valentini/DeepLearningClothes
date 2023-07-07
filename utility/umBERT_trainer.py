@@ -71,7 +71,7 @@ class umBERT_trainer():
                 print(f'{phase} Accuracy (Classification): {epoch_accuracy_classification}')
                 print(f'{phase} Accuracy (MLM): {epoch_accuracy_MLM}')
 
-    def pre_train_BC(self, dataloaders, labels_classification):
+    def pre_train_BC(self, dataloaders):
         """
         This function performs the pre-training of the umBERT model only on the classification tasks
         :param dataloaders: the dataloaders used to load the data (train and validation)
@@ -89,8 +89,9 @@ class umBERT_trainer():
                 running_loss = 0.0  # keep track of the loss
                 accuracy = 0.0  # keep track of the accuracy of the classification task
 
-                for inputs in dataloaders[phase]:  # for each batch
+                for inputs, labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
+                    labels = labels.to(self.device)  # move the data to the device
 
                     self.optimizer.zero_grad()  # zero the gradients
 
@@ -98,14 +99,14 @@ class umBERT_trainer():
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
                         clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits
-                        loss = self.criterion(clf, labels_classification[phase])  # compute the loss
+                        loss = self.criterion(clf, labels)  # compute the loss
 
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
-                    accuracy += torch.sum(torch.argmax(clf, dim=1) == labels_classification[phase])  # update the accuracy
+                    accuracy += torch.sum(torch.argmax(clf, dim=1) == labels)  # update the accuracy
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(dataloaders[phase].dataset)  # compute the average accuracy of the epoch
@@ -113,7 +114,7 @@ class umBERT_trainer():
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy : {epoch_accuracy}')
 
-    def pre_train_MLM(self, dataloaders, labels_ids, masked_positions):  # labels sono le posizioni dei vestiti nel catalogo, precedentemente calcolate da masking input
+    def pre_train_MLM(self, dataloaders, masked_positions):  # labels sono le posizioni dei vestiti nel catalogo, precedentemente calcolate da masking input
         """
         This function performs the pre-training of the umBERT model only on the MLM task
         :param dataloaders: the dataloaders used to load the data (train and validation)
@@ -133,17 +134,18 @@ class umBERT_trainer():
                 running_loss = 0.0  # keep track of the loss
                 accuracy = 0.0  # keep track of the accuracy of the MLM task
 
-                for inputs in dataloaders[phase]:  # for each batch
+                for inputs,labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
+                    labels = labels.to(self.device)  # move the data to the device
 
                     self.optimizer.zero_grad()  # zero the gradients
 
                     with torch.set_grad_enabled(
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
-                        masked_elements = torch.gather(output, 0, masked_positions[phase])  # select the masked elements
+                        masked_elements = custom_gather(output,masked_positions,self.device)  # select the masked elements
                         logits = self.model.ffnn(masked_elements)  # compute the logits
-                        loss = self.criterion(logits, labels_ids[phase])  # compute the loss
+                        loss = self.criterion(logits, labels)  # compute the loss
 
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
@@ -151,7 +153,7 @@ class umBERT_trainer():
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
                     accuracy += torch.sum(
-                        torch.argmax(logits, dim=1) == labels_ids[phase])  # update the accuracy of the MLM task
+                        torch.argmax(logits, dim=1) == labels)  # update the accuracy of the MLM task
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(
