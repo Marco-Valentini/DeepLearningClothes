@@ -26,4 +26,5 @@ def create_tensor_dataset_for_BC_from_dataframe(df_outfit: pd.DataFrame, embeddi
                 index_item = ids.index(ID)
                 embedding = embeddings[index_item]
                 dataset[j, i, :] = embedding
+                # do not transpose to not create conflicts with masking input
     return torch.Tensor(dataset)

@@ -10,7 +10,7 @@ from torch.optim import Adam
 import os
 from utility.image_to_embedding import image_to_embedding
 from utility.custom_image_dataset import CustomImageDataset
-from utility.create_tensor_dataset_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
+from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.masking_input import masking_input
 import numpy as np
 from torch.nn import CrossEntropyLoss
