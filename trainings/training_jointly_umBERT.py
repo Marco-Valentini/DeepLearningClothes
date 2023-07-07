@@ -72,7 +72,12 @@ training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embe
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 training_set, masked_indexes_train, masked_labels_train = masking_input(training_set, train_dataframe, MASK)
-
+# labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
+BC_train_labels = torch.Tensor(compatibility_train).reshape(compatibility_train.shape[0], 1)
+MLM_train_labels = torch.Tensor(masked_labels_train).reshape(masked_labels_train.shape[0], 1)
+train_labels = torch.concat((BC_train_labels,MLM_train_labels), dim=1)
+# create a Tensor Dataset
+training_set = torch.utils.data.TensorDataset(training_set, train_labels)
 # create the dataloader for the training set
 print('Creating the dataloader for the training set...')
 trainloader = DataLoader(training_set, batch_size=32, shuffle=False, num_workers=0)
@@ -89,6 +94,12 @@ validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, em
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 validation_set, masked_indexes_valid, masked_labels_valid = masking_input(validation_set, valid_dataframe, MASK)
+# labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
+BC_valid_labels = torch.Tensor(compatibility_valid).reshape(compatibility_valid.shape[0], 1)
+MLM_valid_labels = torch.Tensor(masked_labels_valid).reshape(masked_labels_valid.shape[0], 1)
+valid_labels = torch.concat((BC_valid_labels,MLM_valid_labels), dim=1)
+# create a Tensor Dataset
+validation_set = torch.utils.data.TensorDataset(validation_set, valid_labels)
 
 # create the dataloader for the validation set
 print('Creating the dataloader for the validation set...')
@@ -99,8 +110,8 @@ print('Done!')
 # for the training and validation set
 dataloaders = {'train': trainloader, 'val': validloader}
 masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
-masked_labels = {'train': masked_labels_train, 'val': masked_labels_valid}
-compatibility = {'train': compatibility_train, 'val': compatibility_valid}
+# masked_labels = {'train': masked_labels_train, 'val': masked_labels_valid} # not needed
+# compatibility = {'train': compatibility_train, 'val': compatibility_valid}
 
 # import the test set
 test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
@@ -114,6 +125,12 @@ test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embedding
 print('Masking the input...')
 test_set, masked_indexes_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
 
+# labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
+BC_test_labels = torch.Tensor(compatibility_test).reshape(compatibility_test.shape[0], 1)
+MLM_test_labels = torch.Tensor(masked_labels_test).reshape(masked_labels_test.shape[0], 1)
+test_labels = torch.concat((BC_test_labels,MLM_test_labels), dim=1)
+# create a Tensor Dataset
+test_set = torch.utils.data.TensorDataset(test_set, test_labels)
 # create the dataloader for the test set
 print('Creating the dataloader for the test set...')
 testloader = DataLoader(test_set, batch_size=32, shuffle=False, num_workers=0)
@@ -125,7 +142,7 @@ criterion = CrossEntropyLoss()
 print('Start pre-training the model')
 
 trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion, device=device, n_epochs=100)
-trainer.pre_train_BERT_like(dataloaders=dataloaders, labels_classification=compatibility, labels_ids=masked_labels, masked_positions=masked_indices)
+trainer.pre_train_BERT_like(dataloaders=dataloaders, masked_positions=masked_indices)
 print('Pre-training completed')
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_jointly.pth')

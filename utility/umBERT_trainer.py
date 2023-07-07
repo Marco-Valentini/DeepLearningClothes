@@ -10,7 +10,7 @@ class umBERT_trainer():
         self.device = device  # the device used to perform the computations (CPU or GPU)
         self.n_epochs = n_epochs  # the number of epochs used to pre-train the model
 
-    def pre_train_BERT_like(self, dataloaders, labels_classification, labels_ids, masked_positions):
+    def pre_train_BERT_like(self, dataloaders, masked_positions):
         """
         This function performs the pre-training of the umBERT model in a BERT-like fashion (MLM + classification tasks)
         :param dataloaders: the dataloaders used to load the data (train and validation)
@@ -33,8 +33,11 @@ class umBERT_trainer():
                 accuracy_classification = 0.0  # keep track of the accuracy of the classification task
                 accuracy_MLM = 0.0  # keep track of the accuracy of the MLM task
 
-                for inputs in dataloaders[phase]:  # for each batch
+                for inputs,labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
+                    labels_BC,labels_MLM = labels
+                    labels_BC = labels_BC.to(self.device)  # move the data to the device
+                    labels_MLM = labels_MLM.to(self.device)  # move the data to the device
 
                     self.optimizer.zero_grad()  # zero the gradients
 
@@ -43,11 +46,11 @@ class umBERT_trainer():
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
                         masked_elements = custom_gather(outputs=output, masked_positions=masked_positions, device=self.device)  # select the masked elements
                         logits = self.model.ffnn(masked_elements)  # compute the logits of the MLM task
-                        loss_MLM = self.criterion(logits, labels_ids[phase])  # compute the loss of the MLM task
+                        loss_MLM = self.criterion(logits, labels_MLM)  # compute the loss of the MLM task
                         clf = self.model.Binary_Classifier(
-                            output[0, :, :])  # compute the logits of the classification task
+                            output[:,0,:])  # compute the logits of the classification task
                         # compute the loss of the classification task
-                        loss_BC = self.criterion(clf, labels_classification[phase])
+                        loss_BC = self.criterion(clf, labels_BC)
                         # compute the total loss (sum of the average values of the two losses)
                         loss = loss_MLM.mean() + loss_BC.mean()
 
@@ -57,9 +60,9 @@ class umBERT_trainer():
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
                     # update the accuracy of the classification task
-                    accuracy_classification += torch.sum(torch.argmax(clf, dim=1) == labels_classification[phase])
+                    accuracy_classification += torch.sum(torch.argmax(clf, dim=1) == labels_BC)
                     accuracy_MLM += torch.sum(
-                        torch.argmax(logits, dim=1) == labels_ids[phase])  # update the accuracy of the MLM task
+                        torch.argmax(logits, dim=1) == labels_MLM)  # update the accuracy of the MLM task
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 # compute the average accuracy of the classification task of the epoch
