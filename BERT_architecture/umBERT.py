@@ -16,12 +16,13 @@ class umBERT(nn.Module):
             nhead=num_heads,
             dim_feedforward=self.dim_feedforward,
             dropout=self.dropout,
-            activation="relu",
+            activation="gelu",
             batch_first=True  # Set batch_first to True
         ), num_layers=num_encoders)  # the encoder stack is a transformer encoder stack
         self.ffnn = nn.Linear(d_model, catalogue_size)  # the output of the transformer is fed to a linear layer
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
         self.Binary_Classifier = nn.Linear(d_model, 2)  # second task: binary classification
+        self.sigmoid = F.sigmoid  # the output of the binary classifier layer is fed to a sigmoid layer
 
     def forward(self, outfit):
         """

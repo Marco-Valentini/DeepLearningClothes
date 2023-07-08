@@ -35,7 +35,7 @@ class umBERT_trainer():
 
                 for inputs,labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
-                    labels_BC,labels_MLM = labels
+                    labels_BC, labels_MLM = labels
                     labels_BC = labels_BC.to(self.device)  # move the data to the device
                     labels_MLM = labels_MLM.to(self.device)  # move the data to the device
 
@@ -96,12 +96,32 @@ class umBERT_trainer():
                     inputs = inputs.to(self.device)  # move the data to the device
                     labels = labels.to(self.device)  # move the data to the device
 
+
                     self.optimizer.zero_grad()  # zero the gradients
 
                     with torch.set_grad_enabled(
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
                         clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits
+                        # print(f'Shape of clf output : {clf.shape}')
+                        # print(f'output of clf is : {clf}')
+                        # clf will be the max value between the two final logits
+                        pred_labels = torch.max(self.model.sigmoid(clf), dim=1).indices  # compute the predicted labels
+                        # print(f'Shape of pred_labels : {pred_labels.shape}')
+                        # print(f'pred_labels is : {pred_labels}')
+                        pred_labels = pred_labels.unsqueeze(-1)
+                        # print(f'Shape of pred_labels after unsqueeze : {pred_labels.shape}')
+                        # print(f'pred_labels after unsqueeze is : {pred_labels}')
+                        # #TODO check that clf dimension is 8,2
+                        clf = torch.max(clf, dim=1).values # half the dimension to give the predicted logits to the loss
+                        # print(f'Shape of clf after max : {clf.shape}')
+                        clf = clf.unsqueeze(-1)
+                        # print(f'Shape of clf after unsqueeze : {clf.shape}')
+                        # print(f'Shape of input : {inputs.shape}')
+                        # print(f'Shape of labels : {labels.shape}')
+                        labels = labels.unsqueeze(-1)
+                        # print(f'Shape of labels after unsqueeze : {labels.shape}')
+                        # print(f'Shape of output : {clf.shape}')
                         loss = self.criterion(clf, labels)  # compute the loss
 
                         if phase == 'train':
@@ -109,13 +129,19 @@ class umBERT_trainer():
                             self.optimizer.step()  # update the parameters
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
-                    accuracy += torch.sum(torch.argmax(clf, dim=1) == labels)  # update the accuracy
+                    # the accuracy must be computed on the activated output
+                    # print(f'Predicted labels : {pred_labels}')
+                    # print(f'Labels : {labels}')
+                    # print(f'The sum of correct predictions {torch.sum(pred_labels == labels)}')
+                    accuracy += torch.sum(pred_labels == labels)  # update the accuracy
+                    # print(f'Accuracy : {accuracy:10f}')
 
+                print(f'length of dataset is : {len(dataloaders[phase].dataset)}')
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(dataloaders[phase].dataset)  # compute the average accuracy of the epoch
 
-                print(f'{phase} Loss: {epoch_loss}')
-                print(f'{phase} Accuracy : {epoch_accuracy}')
+                print(f'{phase} Loss: {epoch_loss:.10f}')
+                print(f'{phase} Accuracy : {epoch_accuracy:.10f}')
 
     def pre_train_MLM(self, dataloaders, masked_positions):  # labels sono le posizioni dei vestiti nel catalogo, precedentemente calcolate da masking input
         """
