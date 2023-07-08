@@ -44,6 +44,7 @@ model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1],
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
+print(f'target variable count in train_dataframe : {train_dataframe["compatibility"].value_counts()}')
 compatibility_train = train_dataframe['compatibility'].values
 train_dataframe.drop(columns='compatibility', inplace=True)
 
@@ -65,6 +66,7 @@ print("Training set for masked language model created")
 
 # import the validation set
 valid_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_valid.csv')
+print(f'target variable count in valid_dataframe : {valid_dataframe["compatibility"].value_counts()}')
 compatibility_valid = valid_dataframe['compatibility'].values
 valid_dataframe.drop(columns='compatibility', inplace=True)
 
@@ -84,9 +86,10 @@ print("Validation set for masked language model created")
 
 # import the test set
 
-test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
-compatibility_test = test_dataframe['compatibility'].values
-test_dataframe.drop(columns='compatibility', inplace=True)
+# test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
+# print(f'target variable count in test_dataframe : {test_dataframe["compatibility"].value_counts()}')
+# compatibility_test = test_dataframe['compatibility'].values
+# test_dataframe.drop(columns='compatibility', inplace=True)
 
 # print("Creating the test set")
 # test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
@@ -117,10 +120,10 @@ criterion_1 = nn.BCEWithLogitsLoss()
 print('Start pre-training BC the model')
 
 trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=100)
-trainer.pre_train_BC(dataloaders=dataloaders_BC)
-print('Pre-training on BC completed')
+#trainer.pre_train_BC(dataloaders=dataloaders_BC)
+#print('Pre-training on BC completed')
 
-torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
+#torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 
 criterion_2 = nn.CrossEntropyLoss()
 trainer.criterion = criterion_2

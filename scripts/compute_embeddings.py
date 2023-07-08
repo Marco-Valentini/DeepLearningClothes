@@ -50,8 +50,8 @@ print("Embeddings computed")
 print("Saving the embeddings IDs")
 with open("../reduced_data/IDs_list", "w") as fp:
     json.dump(IDs, fp)
-print("IDs loaded")
+print("IDs saved")
 
 with open('../reduced_data/embeddings.npy', 'wb') as f:
     np.save(f, embeddings)
-print("Embeddings loaded")
+print("Embeddings saved")

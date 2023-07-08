@@ -1,5 +1,6 @@
 import torch
 from utility.custom_gather import custom_gather
+import matplotlib.pyplot as plt
 
 
 class umBERT_trainer():
@@ -9,6 +10,7 @@ class umBERT_trainer():
     - MLM only
     - classification only (BC)
     """
+
     def __init__(self, model, optimizer, criterion, device, n_epochs=500):
         """
         This function initializes the umBERT_trainer class with the following parameters:
@@ -60,7 +62,8 @@ class umBERT_trainer():
                     # convert the tensor labels_MLM to LongTensor
                     labels_MLM = labels_MLM.type(torch.LongTensor)
                     # do a one-hot encoding of the labels of the MLM task and move them to the device
-                    labels_MLM = torch.nn.functional.one_hot(labels_MLM, num_classes=self.model.catalogue_size).to(self.device)
+                    labels_MLM = torch.nn.functional.one_hot(labels_MLM, num_classes=self.model.catalogue_size).to(
+                        self.device)
 
                     # take the positions of the masked elements
                     masked_positions = labels[:, 2]
@@ -69,14 +72,18 @@ class umBERT_trainer():
 
                     self.optimizer.zero_grad()  # zero the gradients
 
-                    with torch.set_grad_enabled(phase == 'train'):  # set the gradient computation only if in training phase
-                        output = self.model.forward(inputs)  # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
-                        masked_elements = custom_gather(outputs=output, masked_positions=masked_positions, device=self.device)  # select the masked elements
+                    with torch.set_grad_enabled(
+                            phase == 'train'):  # set the gradient computation only if in training phase
+                        output = self.model.forward(
+                            inputs)  # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
+                        masked_elements = custom_gather(outputs=output, masked_positions=masked_positions,
+                                                        device=self.device)  # select the masked elements
 
                         logits = self.model.ffnn(masked_elements)  # compute the logits of the MLM task
                         loss_MLM = self.criterion['MLM'](logits, labels_MLM)  # compute the loss of the MLM task
 
-                        clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits of the classification task
+                        clf = self.model.Binary_Classifier(
+                            output[:, 0, :])  # compute the logits of the classification task
                         clf = clf.type(torch.LongTensor).to(self.device)  # convert clf to long tensor
                         # compute the loss of the classification task
                         print(f'clf shape: {clf.shape}')
@@ -94,7 +101,8 @@ class umBERT_trainer():
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
                     # update the accuracy of the classification task
                     accuracy_classification += torch.sum(torch.argmax(clf, dim=1) == labels_BC)
-                    accuracy_MLM += torch.sum(torch.argmax(logits, dim=1) == labels_MLM)  # update the accuracy of the MLM task
+                    accuracy_MLM += torch.sum(
+                        torch.argmax(logits, dim=1) == labels_MLM)  # update the accuracy of the MLM task
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 # compute the average accuracy of the classification task of the epoch
@@ -112,6 +120,10 @@ class umBERT_trainer():
         :param dataloaders: the dataloaders used to load the data (train and validation)
         :return: None
         """
+        train_loss = []
+        val_loss = []
+        train_acc = []
+        val_acc = []
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -133,54 +145,56 @@ class umBERT_trainer():
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
                         clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits
-                        # print(f'Shape of clf output : {clf.shape}')
-                        # print(f'output of clf is : {clf}')
                         # clf will be the max value between the two final logits
                         pred_labels = torch.max(self.model.sigmoid(clf), dim=1).indices  # compute the predicted labels
-                        # print(f'Shape of pred_labels : {pred_labels.shape}')
-                        # print(f'pred_labels is : {pred_labels}')
                         pred_labels = pred_labels.unsqueeze(-1)
-                        # print(f'Shape of pred_labels after unsqueeze : {pred_labels.shape}')
-                        # print(f'pred_labels after unsqueeze is : {pred_labels}')
-                        # #TODO check that clf dimension is 8,2
-                        clf = torch.max(clf, dim=1).values # half the dimension to give the predicted logits to the loss
-                        # print(f'Shape of clf after max : {clf.shape}')
-                        clf = clf.unsqueeze(-1)
-                        # print(f'Shape of clf after unsqueeze : {clf.shape}')
-                        # print(f'Shape of input : {inputs.shape}')
-                        # print(f'Shape of labels : {labels.shape}')
-                        labels = labels.unsqueeze(-1)
-                        # print(f'Shape of labels after unsqueeze : {labels.shape}')
-                        # print(f'Shape of output : {clf.shape}')
-                        loss = self.criterion(clf, labels)  # compute the loss
+                        #TODO check that clf dimension is 8,2
+                        labels_one_hot = torch.nn.functional.one_hot(labels.long(), num_classes=2).to(self.device)
+                        loss = self.criterion(clf, labels_one_hot.float())  # compute the loss
 
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
-                    # the accuracy must be computed on the activated output
-                    # print(f'Predicted labels : {pred_labels}')
-                    # print(f'Labels : {labels}')
-                    # print(f'The sum of correct predictions {torch.sum(pred_labels == labels)}')
+                    # the accuracy must be computed on the predicted labels
+                    labels = labels.unsqueeze(-1)
                     accuracy += torch.sum(pred_labels == labels)  # update the accuracy
-                    # print(f'Accuracy : {accuracy:10f}')
+
 
                 print(f'length of dataset is : {len(dataloaders[phase].dataset)}')
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(dataloaders[phase].dataset)  # compute the average accuracy of the epoch
+                if phase == 'train':
+                    train_loss.append(epoch_loss)
+                    train_acc.append(epoch_accuracy)
+                else:
+                    val_loss.append(epoch_loss)
+                    val_acc.append(epoch_accuracy)
 
                 print(f'{phase} Loss: {epoch_loss:.10f}')
                 print(f'{phase} Accuracy : {epoch_accuracy:.10f}')
+        plt.plot(train_loss, label='train loss')
+        plt.plot(val_loss, label='val loss')
+        plt.legend()
+        plt.show()
+        plt.plot(train_acc, label='train acc')
+        plt.plot(val_acc, label='val acc')
+        plt.legend()
+        plt.show()
 
-    def pre_train_MLM(self, dataloaders, masked_positions):
+
+    def pre_train_MLM(self, dataloaders):
         """
         This function performs the pre-training of the umBERT model only on the MLM task
         :param dataloaders: the dataloaders used to load the data (train and validation)
         :param masked_positions: the positions of the masked elements (train and validation)
         :return: None
         """
-
+        train_loss = []
+        val_loss = []
+        train_acc = []
+        val_acc = []
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -192,26 +206,34 @@ class umBERT_trainer():
                 running_loss = 0.0  # keep track of the loss
                 accuracy = 0.0  # keep track of the accuracy of the MLM task
 
-                for inputs,labels in dataloaders[phase]:  # for each batch
+                for inputs, labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
-                    labels = labels.to(self.device)  # move the data to the device
+                    labels_MLM = labels[:,0]
+                    masked_positions = labels[:,1]
+                    labels_MLM = labels_MLM.to(self.device)  # move the data to the device
+                    masked_positions = masked_positions.to(self.device)  # move the data to the device
 
                     self.optimizer.zero_grad()  # zero the gradients
 
                     with torch.set_grad_enabled(
                             phase == 'train'):  # set the gradient computation only if in training phase
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
-                        masked_elements = custom_gather(output,masked_positions,self.device)  # select the masked elements
+                        masked_elements = custom_gather(output, masked_positions,
+                                                        self.device)  # select the masked elements
                         logits = self.model.ffnn(masked_elements)  # compute the logits
-                        loss = self.criterion(logits, labels)  # compute the loss
+                        logits = logits.view(-1, self.model.catalogue_size)
+                        pred_labels = torch.max(self.model.softmax(logits,dim=1), dim=1).indices
+                        labels_MLM_one_hot = torch.nn.functional.one_hot(labels_MLM.long(), num_classes=self.model.catalogue_size).to(self.device)
+                        loss = self.criterion(logits, labels_MLM_one_hot.float())  # compute the loss
 
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
 
                     running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
-                    accuracy += torch.sum(
-                        torch.argmax(logits, dim=1) == labels)  # update the accuracy of the MLM task
+                    labels_MLM = labels_MLM.unsqueeze(-1)
+                    pred_labels = pred_labels.unsqueeze(-1)
+                    accuracy += torch.sum(pred_labels == labels_MLM)  # update the accuracy of the MLM task
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(
@@ -219,3 +241,18 @@ class umBERT_trainer():
 
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy: {epoch_accuracy}')
+                if phase == 'train':
+                    train_loss.append(epoch_loss)
+                    train_acc.append(epoch_accuracy)
+                else:
+                    val_loss.append(epoch_loss)
+                    val_acc.append(epoch_accuracy)
+        plt.plot(train_loss, label='train loss')
+        plt.plot(val_loss, label='val loss')
+        plt.legend()
+        plt.show()
+        plt.plot(train_acc, label='train acc')
+        plt.plot(val_acc, label='val acc')
+        plt.legend()
+        plt.show()
+
