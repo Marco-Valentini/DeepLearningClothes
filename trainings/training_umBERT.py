@@ -1,16 +1,10 @@
 from BERT_architecture.umBERT import umBERT
-
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from torchvision.datasets import ImageFolder
-from torchvision.models import resnet18, ResNet18_Weights
 import torch.nn as nn
-from torchvision.transforms import transforms
 from torch.optim import Adam
 import os
-from utility.image_to_embedding import image_to_embedding
-from utility.custom_image_dataset import CustomImageDataset
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 import numpy as np
 from utility.masking_input import masking_input
@@ -29,58 +23,15 @@ print("Device used: ", device)
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the catalogue
 print("Catalogue loaded")
 
-# first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
-
-# # load the model finetuned_fashion_resnet18.pth
-# print("Loading the model finetuned_fashion_resnet18.pth")
-# fashion_resnet18 = resnet18()
-# num_ftrs = fashion_resnet18.fc.in_features  # get the number of input features for the last fully connected layer
-# fashion_resnet18.fc = nn.Linear(num_ftrs,
-#                                 4)  # modify the last fully connected layer to have the desired number of classes
-# fashion_resnet18.load_state_dict(torch.load(
-#     '../models/finetuned_fashion_resnet18.pth'))  # load the weights of the model finetuned_fashion_resnet18.pth
-# fashion_resnet18.eval()  # set the model to evaluation mode
-# fashion_resnet18.to(device)  # set the model to run on the device
-#
-# print("Model loaded")
-#
-# print("Loading the image dataset")
-#
-# # load the dataset (just for now, we will use the test dataset)
-# data_transform = transforms.Compose([  # define the transformations to be applied to the images
-#     transforms.Resize((224, 224)),  # resize the image to 224x224
-#     transforms.ToTensor()  # convert the image to a tensor
-# ])
-# data_dir = '../dataset_catalogue'  # define the directory of the dataset
-# image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
-#
-# dataloaders = DataLoader(image_dataset, batch_size=8, shuffle=False, num_workers=0)  # create the dataloader
-# print("Dataset loaded")
-#
-# print("Computing the embeddings of the dataset")
-# # get the embeddings of the dataset, the labels and the ids
-# embeddings, labels, IDs = image_to_embedding(dataloaders, fashion_resnet18, device)
-#
-# print("Embeddings computed")
-
-print("Saving the embeddings IDs")
-
-# with open("../reduced_data/IDs_list", "w") as fp:
-#     json.dump(IDs, fp)
+# first step: load the embeddings of the dataset obtained from fine-tuned model finetuned_fashion_resnet18
 with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
-
 print("IDs loaded")
-
-# with open('../reduced_data/embeddings.npy', 'wb') as f:
-#     np.save(f, embeddings)
 
 with open('../reduced_data/embeddings.npy', 'rb') as f:
     embeddings = np.load(f)
 
 print("Embeddings loaded")
-
-
 
 # create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
 CLS = np.random.rand(1, embeddings.shape[1])  # TODO controlla seed resti lo stesso
@@ -98,7 +49,7 @@ train_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the training set")
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
-training_dataset_BC = torch.utils.data.TensorDataset(training_set.transpose(0,1), torch.Tensor(compatibility_train))
+training_dataset_BC = torch.utils.data.TensorDataset(training_set.transpose(0, 1), torch.Tensor(compatibility_train))
 trainloader_BC = DataLoader(training_dataset_BC, batch_size=8, num_workers=0, shuffle=True)
 print("Training set for binary classification created")
 training_set_MLM, masked_positions_train, actual_masked_values_train = masking_input(training_set, train_dataframe,
@@ -114,7 +65,8 @@ valid_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the validation set")
 validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, embeddings, IDs, CLS)
-vallidation_dataset_BC = torch.utils.data.TensorDataset(validation_set.transpose(0,1), torch.Tensor(compatibility_valid))
+vallidation_dataset_BC = torch.utils.data.TensorDataset(validation_set.transpose(0, 1),
+                                                        torch.Tensor(compatibility_valid))
 validloader_BC = DataLoader(vallidation_dataset_BC, batch_size=8, num_workers=0, shuffle=True)
 print("Validation set for binary classifiation created")
 validation_set_MLM, masked_positions_valid, actual_masked_values_valid = masking_input(validation_set, valid_dataframe,
@@ -143,7 +95,7 @@ test_dataframe.drop(columns='compatibility', inplace=True)
 # create the dictionary to work with modularity
 dataloaders_BC = {'train': trainloader_BC, 'val': validloader_BC}
 dataloaders_MLM = {'train': trainloader_MLM, 'val': validloader_MLM}
-masked_indices = {'train': masked_positions_train, 'val': masked_positions_valid} # questo qui dovrebbe servire ancora
+masked_indices = {'train': masked_positions_train, 'val': masked_positions_valid}  # questo qui dovrebbe servire ancora
 # masked_labels = {'train': actual_masked_values_train, 'val': actual_masked_values_valid}
 # compatibility = {'train': compatibility_train, 'val': compatibility_valid}
 # define the optimizer
@@ -163,7 +115,7 @@ torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 criterion_2 = nn.CrossEntropyLoss()
 trainer.criterion = criterion_2
 print('Start pre-training MLM the model')
-trainer.pre_train_MLM(dataloaders=dataloaders_MLM,masked_positions=masked_indices)
+trainer.pre_train_MLM(dataloaders=dataloaders_MLM, masked_positions=masked_indices)
 print('Pre-training on MLM completed')
 
 # save the model into a checkpoint file

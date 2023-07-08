@@ -65,19 +65,19 @@ data_transforms = {
             # vision to augment the size of your data set. Firstly, it increases the number of times the network gets to
             # see the same thing, and secondly it adds rotational invariance to your networks learning.
             transforms.ToTensor(),  # convert the image to a tensor
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
         ]),
     'val': transforms.Compose([  # Just normalization for validation, no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor(),  # convert the image to a tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
     ]),
     'test': transforms.Compose([  # Just Resizing for testing, no normalization and no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor(),  # convert the image to a tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
     ])
 }
 
@@ -129,6 +129,7 @@ criterion = nn.CrossEntropyLoss()  # loss function (categorical cross-entropy)
 optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer (stochastic gradient descent)
 num_epochs = 20  # number of epochs to train the model
 num_classes = 4  # number of classes in the dataset (4 in our case)
+
 
 # fine-tune the model
 def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_classes, device, num_epochs=20):

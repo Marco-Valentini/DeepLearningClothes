@@ -5,7 +5,7 @@ import numpy as np
 np.random.seed(42)
 
 
-def create_tensor_dataset_for_BC_from_dataframe(df_outfit: pd.DataFrame, embeddings: torch.Tensor, ids, CLS):
+def create_tensor_dataset_for_BC_from_dataframe(df_outfit: pd.DataFrame, embeddings, ids, CLS):
     """
     This function takes as input a dataframe containing the labels of the items in the outfit, the embeddings of the items and the ids of the items.
     It returns a tensor of shape (seq_len, n_outfits, embedding_size) containing the embeddings of the items in the outfit and the CLS token.
