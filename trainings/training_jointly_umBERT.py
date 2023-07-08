@@ -38,7 +38,7 @@ CLS = np.random.rand(1, embeddings.shape[1])
 MASK = np.random.rand(1, embeddings.shape[1])
 print('Done!')
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.1,
                dim_feedforward=None)
 
 # import the training set

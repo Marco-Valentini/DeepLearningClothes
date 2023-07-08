@@ -39,7 +39,7 @@ MASK = np.random.rand(1, embeddings.shape[1])
 print("CLS and MASK token embeddings created")
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.1,
                dim_feedforward=None)
 
 # import the training set
@@ -120,10 +120,10 @@ criterion_1 = nn.BCEWithLogitsLoss()
 print('Start pre-training BC the model')
 
 trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=100)
-#trainer.pre_train_BC(dataloaders=dataloaders_BC)
-#print('Pre-training on BC completed')
+trainer.pre_train_BC(dataloaders=dataloaders_BC)
+print('Pre-training on BC completed')
 
-#torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
+torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 
 criterion_2 = nn.CrossEntropyLoss()
 trainer.criterion = criterion_2
