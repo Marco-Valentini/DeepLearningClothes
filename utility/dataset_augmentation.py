@@ -11,19 +11,19 @@ catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
 
 def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, with_CLS=True, batch_first=True):
     """
-    this function takes as input an outfit (a tensor of shape (5, n_outfits, emb_size)) and a dataframe containing the labels of the items in the outfit.
+    this function takes as input an outfit (a tensor of shape (5, n_outfits, emb_size)) and a dataframe containing the labels_train of the items in the outfit.
     It returns the outfit with a masked item (one item per time for each outfit) and the label of the masked item.
     :param outfit: the outfit to mask (a tensor of shape (5, n_outfits, emb_size))
-    :param outfit_dataframe: Dataframe containing the labels of the items in the outfit
+    :param outfit_dataframe: Dataframe containing the labels_train of the items in the outfit
     :param MASK: the embedding token MASK (a tensor of shape (1, emb_size))
     :param with_CLS: if True, the CLS token is preserved, otherwise it is removed from the tensor (default: True)
     :param batch_first: if True, the batch dimension of the output is the first dimension of the tensor (default: True)
     :return: if batch_first=False:the outfit with a masked item (a tensor of shape (5, n_outfits*sequence_length, emb_size) if with_CLS=True, (4, n_outfits, emb_size) otherwise),
     otherwise: the outfit with a masked item (a tensor of shape (n_outfits*sequence_length, 5, emb_size) if with_CLS=True, (n_outfits, 4, emb_size) otherwise),
     """
-
-    CLS = outfit[0, :, :]  # CLS is the first element of the tensor, preserve it
-    outfit = outfit[1:, :, :]  # remove CLS from the tensor
+    if with_CLS:
+        CLS = outfit[0, :, :]  # CLS is the first element of the tensor, extract it
+        outfit = outfit[1:, :, :]  # remove CLS from the tensor
     labels = []
     masked_indexes = []  # initialize the list of the indexes of the masked items
     # Create output tensor
@@ -34,7 +34,7 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
     masked_outfit = torch.zeros(sequence_length, n_outfits * sequence_length, emb_size)  # (4, n_outfits*4, emb_size)
     for i in range(outfit.shape[1]):  # for each outfit
         # outfit_labels is of the form [211990161,183179503,190445143,211444470]# for each outfit
-        outfit_labels = outfit_dataframe.loc[i].values  # get the labels of the items in the outfit
+        outfit_labels = outfit_dataframe.loc[i].values  # get the labels_train of the items in the outfit
         for masked_idx in range(4):
             # save the index of the masked item
             masked_indexes.append(masked_idx)
@@ -43,9 +43,9 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
             masked_outfit[masked_idx, i * sequence_length + masked_idx, :] = MASK  # mask the item
 
     if with_CLS:
-        # make CLS a tensor of the same shape of the masked_outfit tensor
+        # make CLS a tensor of the same shape of the masked_outfit_train tensor
         CLS = CLS.unsqueeze(1).repeat(1, sequence_length, 1)
-        masked_outfit = torch.cat((CLS, masked_outfit), dim=0)  # add CLS to the masked_outfit tensor
+        masked_outfit = torch.cat((CLS, masked_outfit), dim=0)  # add CLS to the masked_outfit_train tensor
         # add 1 to the indexes because of CLS
         masked_indexes = [x + 1 for x in masked_indexes]
 
@@ -81,7 +81,7 @@ def create_permutations_per_outfit(outfit: torch.Tensor, with_CLS=True):
 
     if with_CLS:
         CLS = CLS.unsqueeze(0).repeat(1, len(permutations), 1)  # make CLS a tensor of the same shape of the permuted_outfits tensor
-        permuted_outfits = torch.cat((CLS, permuted_outfits), dim=0)  # add CLS to the masked_outfit tensor
+        permuted_outfits = torch.cat((CLS, permuted_outfits), dim=0)  # add CLS to the masked_outfit_train tensor
 
     return permuted_outfits
 

@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -50,8 +51,8 @@ class umBERT(nn.Module):
         :param test_outfit: the outfit embedding
         :return: the probability distribution over the catalogue
         """
-        return self.softmax(self.ffnn(self.forward(test_outfit)))  # returns the probability distribution (in
-        # the main will choose the related item)
+        return torch.max(self.softmax(self.ffnn(self.forward(test_outfit))),dim=1).indices  # TODO fix after fine tuning
+
 
     def predict_BC(self, test_set):
         """
@@ -60,7 +61,7 @@ class umBERT(nn.Module):
         :return: the probability distribution over the catalogue
         """
         # says if the input outfit is compatible or not
-        return self.softmax(self.Binary_Classifier(self.forward(test_set)))
+        return torch.max(self.sigmoid(self.Binary_Classifier(self.forward(test_set))),dim=1).indices # TODO check for dim
 
     def predict_MLM(self, test_set):
         """
@@ -68,4 +69,5 @@ class umBERT(nn.Module):
         :param test_set: the outfit embedding
         :return: the probability distribution over the catalogue
         """
-        return self.softmax(self.ffnn(self.forward(test_set)))  # says which is the masket item
+        return torch.max(self.softmax(self.ffnn(self.forward(test_set)),dim=1),dim=1).indices  # says which is the masked item
+        # TODO check for dim

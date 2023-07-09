@@ -110,9 +110,9 @@ class umBERT_trainer():
                     # update the accuracy of the classification task
 
                     pred_labels_BC = torch.max(self.model.sigmoid(clf), dim=1).indices
-                    pred_labels_BC = pred_labels_BC.to(self.device)  # move the predicted labels to the device
+                    pred_labels_BC = pred_labels_BC.to(self.device)  # move the predicted labels_train to the device
                     pred_labels_MLM = torch.max(self.model.softmax(logits, dim=1), dim=1).indices
-                    pred_labels_MLM = pred_labels_MLM.to(self.device)  # move the predicted labels to the device
+                    pred_labels_MLM = pred_labels_MLM.to(self.device)  # move the predicted labels_train to the device
                     accuracy_classification += torch.sum(pred_labels_BC == labels_BC)
                     accuracy_MLM += torch.sum(pred_labels_MLM == labels_MLM)  # update the accuracy of the MLM task
 
@@ -293,3 +293,7 @@ class umBERT_trainer():
         plt.title('Accuracy in MLM sequential training')
         plt.legend()
         plt.show()
+
+    def fine_tuning(self, dataloaders):
+        pass
+    #TODO aggiungere fine-tuning

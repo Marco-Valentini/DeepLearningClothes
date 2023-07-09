@@ -23,7 +23,7 @@ print('Using device:', device)
 
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the catalogue
 
-# first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
+# first step: load the embeddings of the dataset obtained by the fine-tuned model finetuned_fashion_resnet18.pth
 with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
@@ -35,8 +35,8 @@ print("Embeddings loaded")
 
 # create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
 print('Creating the MASK and CLS token embeddings...')
-CLS = np.random.rand(1, embeddings.shape[1])
-MASK = np.random.rand(1, embeddings.shape[1])
+CLS = np.random.randn(1, embeddings.shape[1])
+MASK = np.random.randn(1, embeddings.shape[1])
 print('Done!')
 
 # import the training set
@@ -161,3 +161,5 @@ trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_jointly.pth')
+
+#TODO save the checkpoints containing the model architecture

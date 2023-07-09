@@ -90,7 +90,7 @@ validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, em
 # augment the validation set with all the permutations of the outfits
 print('Augmenting the validation set with all the permutations of the outfits...')
 validation_set = create_permutations_per_outfit(validation_set)
-# scale the validation set using z-score (layer normalization) (using the mean and std of the training set)
+# scale the validation set using z-score (layer+batch normalization) (using the mean and std of the training set)
 print('Scaling the validation set using z-score...')
 CLS_layer_val = validation_set[0, :, :]  # CLS is the first element of the tensor, preserve it
 validation_set = validation_set[1:, :, :]  # remove CLS from the tensor
@@ -160,3 +160,5 @@ print('Pre-training on MLM completed')
 
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_2.pth')
+
+#TODO save the checkpoints containing the model architecture
