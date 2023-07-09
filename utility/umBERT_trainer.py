@@ -62,8 +62,7 @@ class umBERT_trainer():
                     # convert the tensor labels_MLM to LongTensor
                     labels_MLM = labels_MLM.type(torch.LongTensor)
                     # do a one-hot encoding of the labels of the MLM task and move them to the device
-                    labels_MLM = torch.nn.functional.one_hot(labels_MLM, num_classes=self.model.catalogue_size).to(
-                        self.device)
+                    labels_MLM = torch.nn.functional.one_hot(labels_MLM, num_classes=self.model.catalogue_size).to(self.device)
 
                     # take the positions of the masked elements
                     masked_positions = labels[:, 2]
@@ -72,25 +71,27 @@ class umBERT_trainer():
 
                     self.optimizer.zero_grad()  # zero the gradients
 
-                    with torch.set_grad_enabled(
-                            phase == 'train'):  # set the gradient computation only if in training phase
-                        output = self.model.forward(
-                            inputs)  # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
+                    with torch.set_grad_enabled(phase == 'train'):  # set the gradient computation only if in training phase
+                        # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
+                        output = self.model.forward(inputs)
+
+                        # compute the loss of the MLM task
                         masked_elements = custom_gather(outputs=output, masked_positions=masked_positions,
                                                         device=self.device)  # select the masked elements
 
                         logits = self.model.ffnn(masked_elements)  # compute the logits of the MLM task
                         loss_MLM = self.criterion['MLM'](logits, labels_MLM)  # compute the loss of the MLM task
 
-                        clf = self.model.Binary_Classifier(
-                            output[:, 0, :])  # compute the logits of the classification task
-                        clf = clf.type(torch.LongTensor).to(self.device)  # convert clf to long tensor
+                        clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits of the classification task
+                        # convert the type of clf and labels_BC to the type required by the loss function (BCEWithLogitsLoss)
+                        clf = clf.type(torch.FloatTensor).to(self.device)
+                        labels_BC = labels_BC.type(torch.FloatTensor).to(self.device)
                         # compute the loss of the classification task
-                        print(f'clf shape: {clf.shape}')
-                        print(f'clf type: {clf.type()}')
-                        print(f'labels_BC shape: {labels_BC.shape}')
-                        print(f'labels_BC type: {labels_BC.type()}')
                         loss_BC = self.criterion['BC'](clf, labels_BC)
+                        print(f'--- MLM loss: {loss_MLM} ---')
+                        print(f'--- mean MLM loss: {loss_MLM.mean()} ---')
+                        print(f'--- BC loss: {loss_BC} ---')
+                        print(f'--- mean BC loss: {loss_BC.mean()} ---')
                         # compute the total loss (sum of the average values of the two losses)
                         loss = loss_MLM.mean() + loss_BC.mean()
 
@@ -98,11 +99,17 @@ class umBERT_trainer():
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
 
-                    running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
+                    # update the loss value (multiply by the batch size)
+                    running_loss += loss.item() * inputs.size(0)
+
                     # update the accuracy of the classification task
-                    accuracy_classification += torch.sum(torch.argmax(clf, dim=1) == labels_BC)
-                    accuracy_MLM += torch.sum(
-                        torch.argmax(logits, dim=1) == labels_MLM)  # update the accuracy of the MLM task
+                    predictions_BC = torch.max(self.model.sigmoid(clf), dim=1).indices
+                    labels_BC = torch.max(labels_BC, dim=1).indices
+                    accuracy_classification += torch.sum(predictions_BC == labels_BC)
+
+                    # update the accuracy of the MLM task
+                    prediction_MLM = torch.max(self.model.softmax(logits), dim=1).indices
+                    accuracy_MLM += torch.sum(prediction_MLM == labels_MLM)
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 # compute the average accuracy of the classification task of the epoch
@@ -110,9 +117,21 @@ class umBERT_trainer():
                 # compute the average accuracy of the MLM task of the epoch
                 epoch_accuracy_MLM = accuracy_MLM / len(dataloaders[phase].dataset)
 
-                print(f'{phase} Loss: {epoch_loss}')
-                print(f'{phase} Accuracy (Classification): {epoch_accuracy_classification}')
-                print(f'{phase} Accuracy (MLM): {epoch_accuracy_MLM}')
+                if phase == 'train':
+                    train_loss.append(epoch_loss)
+                    train_acc_BC.append(epoch_accuracy_classification)
+                    train_acc_MLM.append(epoch_accuracy_MLM)
+                else:
+                    val_loss.append(epoch_loss)
+                    val_acc_BC.append(epoch_accuracy_classification)
+                    val_acc_MLM.append(epoch_accuracy_MLM)
+
+                print(f'{phase} - correct clf predictions: {accuracy_classification}/ {len(dataloaders[phase].dataset)}')
+                print(f'{phase} - correct MLM predictions: {accuracy_MLM}/ {len(dataloaders[phase].dataset)}')
+                print(f'{phase} - len dataset: {len(dataloaders[phase].dataset)}')
+                print(f'{phase} - Loss: {epoch_loss}')
+                print(f'{phase} - Accuracy (Classification): {epoch_accuracy_classification}')
+                print(f'{phase} - Accuracy (MLM): {epoch_accuracy_MLM}')
 
     def pre_train_BC(self, dataloaders):
         """
