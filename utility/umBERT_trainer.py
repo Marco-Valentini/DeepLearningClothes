@@ -81,10 +81,11 @@ class umBERT_trainer():
 
                     self.optimizer.zero_grad()  # zero the gradients
 
-                    with torch.set_grad_enabled(
-                            phase == 'train'):  # set the gradient computation only if in training phase
-                        output = self.model.forward(
-                            inputs)  # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
+                    with torch.set_grad_enabled(phase == 'train'):  # set the gradient computation only if in training phase
+                        # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
+                        output = self.model.forward(inputs)
+
+                        # compute the loss of the MLM task
                         masked_elements = custom_gather(outputs=output, masked_positions=masked_positions,
                                                         device=self.device)  # select the masked elements
                         logits = self.model.ffnn(masked_elements)  # compute the logits of the MLM task
@@ -103,7 +104,9 @@ class umBERT_trainer():
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
 
-                    running_loss += loss.item() * inputs.size(0)  # update the loss value (multiply by the batch size)
+                    # update the loss value (multiply by the batch size)
+                    running_loss += loss.item() * inputs.size(0)
+
                     # update the accuracy of the classification task
 
                     pred_labels_BC = torch.max(self.model.sigmoid(clf), dim=1).indices

@@ -37,9 +37,6 @@ print('Creating the MASK and CLS token embeddings...')
 CLS = np.random.rand(1, embeddings.shape[1])
 MASK = np.random.rand(1, embeddings.shape[1])
 print('Done!')
-# define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.1,
-               dim_feedforward=None)
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
@@ -52,6 +49,9 @@ training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embe
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 training_set, masked_indexes_train, masked_labels_train = masking_input(training_set, train_dataframe, MASK)
+# scale the training set using z-score
+print('Scaling the training set using z-score...')
+training_set = (training_set - training_set.mean()) / training_set.std()
 # labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
 BC_train_labels = torch.Tensor(compatibility_train).unsqueeze(1)
 MLM_train_labels = torch.Tensor(masked_labels_train).unsqueeze(1)
@@ -76,6 +76,9 @@ validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, em
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 validation_set, masked_indexes_valid, masked_labels_valid = masking_input(validation_set, valid_dataframe, MASK)
+# scale the validation set using z-score
+print('Scaling the validation set using z-score...')
+validation_set = (validation_set - validation_set.mean()) / validation_set.std()
 # labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
 BC_valid_labels = torch.Tensor(compatibility_valid).unsqueeze(1)
 MLM_valid_labels = torch.Tensor(masked_labels_valid).unsqueeze(1)
@@ -120,13 +123,18 @@ test_dataframe.drop(columns='compatibility', inplace=True)
 # testloader = DataLoader(test_set, batch_size=16, shuffle=True, num_workers=0)
 # print('Done!')
 
-optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01)
+# define the umBERT model
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
+               dropout=0.2, dim_feedforward=None)
+
+# use Adam as optimizer as suggested in the paper
+optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
 criterion_MLM = CrossEntropyLoss()
 criterion_BC = BCEWithLogitsLoss()
 criteria = {'BC': criterion_BC, 'MLM': criterion_MLM}
 
 print('Start pre-training the model')
-trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=100)
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=500)
 trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
 # save the model into a checkpoint file
