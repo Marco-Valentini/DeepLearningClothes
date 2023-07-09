@@ -34,7 +34,12 @@ class umBERT_trainer():
         :return: None
         """
         self.model = self.model.to(self.device)  # set the model to run on the device
-
+        train_loss = []
+        val_loss = []
+        train_acc_BC = []
+        train_acc_MLM = []
+        val_acc_BC = []
+        val_acc_MLM = []
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -87,6 +92,10 @@ class umBERT_trainer():
                         clf = clf.type(torch.FloatTensor).to(self.device)
                         labels_BC = labels_BC.type(torch.FloatTensor).to(self.device)
                         # compute the loss of the classification task
+                        print(f'clf shape: {clf.shape}')
+                        print(f'clf type: {clf.type()}')
+                        print(f'labels_BC shape: {labels_BC.shape}')
+                        print(f'labels_BC type: {labels_BC.type()}')
                         loss_BC = self.criterion['BC'](clf, labels_BC)
                         print(f'--- MLM loss: {loss_MLM} ---')
                         print(f'--- mean MLM loss: {loss_MLM.mean()} ---')
@@ -132,6 +141,18 @@ class umBERT_trainer():
                 print(f'{phase} - Loss: {epoch_loss}')
                 print(f'{phase} - Accuracy (Classification): {epoch_accuracy_classification}')
                 print(f'{phase} - Accuracy (MLM): {epoch_accuracy_MLM}')
+
+        # plot the loss and the accuracy
+        plt.plot(train_loss, label='train loss')
+        plt.plot(val_loss, label='val loss')
+        plt.legend()
+        plt.show()
+        plt.plot(train_acc_BC, label='train acc BC')
+        plt.plot(train_acc_MLM, label='train acc MLM')
+        plt.plot(val_acc_BC, label='val acc BC')
+        plt.plot(val_acc_MLM, label='val acc MLM')
+        plt.legend()
+        plt.show()
 
     def pre_train_BC(self, dataloaders):
         """
