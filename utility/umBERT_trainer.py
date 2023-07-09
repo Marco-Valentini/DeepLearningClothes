@@ -183,7 +183,6 @@ class umBERT_trainer():
                         # clf will be the max value between the two final logits
                         pred_labels = torch.max(self.model.sigmoid(clf), dim=1).indices  # compute the predicted labels
                         pred_labels = pred_labels.unsqueeze(-1)
-                        # TODO check that clf dimension is 8,2
                         labels_one_hot = torch.nn.functional.one_hot(labels.long(), num_classes=2).to(self.device)
                         loss = self.criterion(clf, labels_one_hot.float())  # compute the loss
 
