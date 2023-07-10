@@ -108,8 +108,7 @@ class umBERT_trainer():
                     running_loss += loss.item() * inputs.size(0)
 
                     # update the accuracy of the classification task
-
-                    pred_labels_BC = torch.max(self.model.sigmoid(clf), dim=1).indices
+                    pred_labels_BC = torch.max((self.model.softmax(clf,dim=1)), dim=1).indices
                     pred_labels_BC = pred_labels_BC.to(self.device)  # move the predicted labels_train to the device
                     pred_labels_MLM = torch.max(self.model.softmax(logits, dim=1), dim=1).indices
                     pred_labels_MLM = pred_labels_MLM.to(self.device)  # move the predicted labels_train to the device
@@ -181,7 +180,7 @@ class umBERT_trainer():
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
                         clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits
                         # clf will be the max value between the two final logits
-                        pred_labels = torch.max(self.model.sigmoid(clf), dim=1).indices  # compute the predicted labels
+                        pred_labels = torch.max(self.model.softmax(clf,dim=1), dim=1).indices  # compute the predicted labels
                         pred_labels = pred_labels.unsqueeze(-1)
                         labels_one_hot = torch.nn.functional.one_hot(labels.long(), num_classes=2).to(self.device)
                         loss = self.criterion(clf, labels_one_hot.float())  # compute the loss

@@ -40,7 +40,7 @@ MASK = np.random.rand(1, embeddings.shape[1])
 print("CLS and MASK token embeddings created")
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.1,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.2,
                dim_feedforward=None)
 
 # import the training set
@@ -98,7 +98,7 @@ validation_set = (validation_set - mean) / std
 validation_set = torch.cat((CLS_layer_val.unsqueeze(0), validation_set), dim=0)  # concatenate CLS to the scaled tensor
 compatibility_valid = np.repeat(compatibility_valid, 24, axis=0)  # repeat the compatibility values 24 times
 vallidation_dataset_BC = torch.utils.data.TensorDataset(validation_set.transpose(0,1), torch.Tensor(compatibility_valid))
-validloader_BC = DataLoader(vallidation_dataset_BC, batch_size=8, num_workers=0, shuffle=True)
+validloader_BC = DataLoader(vallidation_dataset_BC, batch_size=32, num_workers=0, shuffle=True)
 print("Validation set for binary classifiation created")
 # repeat each row of the train dataframe 24 times (all the permutations of the outfit)
 valid_dataframe = pd.DataFrame(np.repeat(valid_dataframe.values, 24, axis=0), columns=train_dataframe.columns)
@@ -108,29 +108,10 @@ MLM_valid_labels = torch.Tensor(actual_masked_values_valid).reshape(len(actual_m
 masked_positions_tensor_valid = torch.Tensor(masked_positions_valid).reshape(len(masked_positions_valid), 1)
 valid_labels_MLM = torch.concat((MLM_valid_labels,masked_positions_tensor_valid), dim=1)
 validation_dataset_MLM = torch.utils.data.TensorDataset(validation_set_MLM, valid_labels_MLM)
-validloader_MLM = DataLoader(validation_dataset_MLM, batch_size=8, num_workers=0, shuffle=True)
+validloader_MLM = DataLoader(validation_dataset_MLM, batch_size=32, num_workers=0, shuffle=True)
 print("Validation set for masked language model created")
 
-# import the test set
 
-# test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
-# print(f'target variable count in test_dataframe : {test_dataframe["compatibility"].value_counts()}')
-# compatibility_test = test_dataframe['compatibility'].values
-# test_dataframe.drop(columns='compatibility', inplace=True)
-
-# print("Creating the test set")
-# test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
-# test_dataset_BC = torch.utils.data.TensorDataset(test_set.transpose(0,1), torch.Tensor(compatibility_test))
-# testloader_BC = DataLoader(test_dataset_BC, batch_size=8, num_workers=0, shuffle=True)
-# print("Test set for binary classifiation created")
-# test_set_MLM, masked_positions_test, actual_masked_values_test = masking_input(test_set, test_dataframe, MASK,
-#                                                                                with_CLS=False)
-# MLM_test_labels = torch.Tensor(actual_masked_values_test).reshape(len(actual_masked_values_test), 1)
-# masked_positions_tensor_test = torch.Tensor(masked_positions_test).reshape(len(masked_positions_test), 1)
-# test_labels_MLM = torch.concat((MLM_test_labels,masked_positions_tensor_test), dim=1)
-# test_dataset_MLM = torch.utils.data.TensorDataset(test_set_MLM, test_labels_MLM)
-# testloader_MLM = DataLoader(test_dataset_MLM, batch_size=8, num_workers=0, shuffle=True)
-# print("Test set for masked language model created")
 
 # create the dictionary to work with modularity
 dataloaders_BC = {'train': trainloader_BC, 'val': validloader_BC}
@@ -146,7 +127,7 @@ criterion_1 = nn.BCEWithLogitsLoss()
 
 print('Start pre-training BC the model')
 
-trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=100)
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=20)
 trainer.pre_train_BC(dataloaders=dataloaders_BC)
 print('Pre-training on BC completed')
 
@@ -162,3 +143,23 @@ print('Pre-training on MLM completed')
 torch.save(model.state_dict(), '../models/umBERT_pretrained_2.pth')
 
 #TODO save the checkpoints containing the model architecture
+
+# import the test set
+
+test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
+print(f'target variable count in test_dataframe : {test_dataframe["compatibility"].value_counts()}')
+compatibility_test = test_dataframe['compatibility'].values
+test_dataframe.drop(columns='compatibility', inplace=True)
+test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
+print("Test set for binary classification created")
+test_set_MLM, masked_positions_test, actual_masked_values_test = masking_input(test_set, test_dataframe, MASK,
+                                                                               with_CLS=True)
+BC_test_labels = torch.Tensor(compatibility_test).reshape(len(compatibility_test), 1)
+MLM_test_labels = torch.Tensor(actual_masked_values_test).reshape(len(actual_masked_values_test), 1)
+masked_positions_tensor_test = torch.Tensor(masked_positions_test).reshape(len(masked_positions_test), 1)
+test_labels = torch.concat((BC_test_labels,MLM_test_labels,masked_positions_tensor_test), dim=1)
+test_dataset = torch.utils.data.TensorDataset(test_set_MLM, test_labels)
+print("Test set for masked language model created")
+
+# create the test dataloader
+testloader = DataLoader(test_dataset, batch_size=16, num_workers=0, shuffle=True)
