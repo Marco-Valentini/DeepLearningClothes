@@ -32,8 +32,8 @@ class umBERT(nn.Module):
             dim_feedforward=self.dim_feedforward,
             dropout=self.dropout,
             activation="gelu",
-            batch_first=True  # Set batch_first to True
-        ), num_layers=num_encoders)  # the encoder stack is a transformer encoder stack
+            batch_first=True,  # Set batch_first to True
+        ), num_layers=num_encoders, enable_nested_tensor=False)  # the encoder stack is a transformer encoder stack
         self.ffnn = nn.Linear(d_model, catalogue_size)  # the output of the transformer is fed to a linear layer
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
         self.Binary_Classifier = nn.Linear(d_model, 2)  # second task: binary classification

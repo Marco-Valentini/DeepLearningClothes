@@ -11,11 +11,10 @@ from utility.dataset_augmentation import create_permutations_per_outfit
 from utility.masking_input import masking_input
 from utility.umBERT_trainer import umBERT_trainer
 import json
+from constants import MASK, CLS  # import the MASK and CLS tokens
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-np.random.seed(42)  # for reproducibility
 
 # use GPU if available
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
@@ -33,11 +32,6 @@ with open('../reduced_data/embeddings.npy', 'rb') as f:
     embeddings = np.load(f)
 
 print("Embeddings loaded")
-
-# create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
-CLS = np.random.rand(1, embeddings.shape[1])  # TODO controlla seed resti lo stesso
-MASK = np.random.rand(1, embeddings.shape[1])
-print("CLS and MASK token embeddings created")
 
 # define the umBERT model
 model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.2,

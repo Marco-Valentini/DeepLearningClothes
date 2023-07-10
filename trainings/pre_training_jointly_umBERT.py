@@ -11,11 +11,10 @@ from utility.dataset_augmentation import create_permutations_per_outfit
 import numpy as np
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from utility.umBERT_trainer import umBERT_trainer
+from constants import MASK, CLS  # import the MASK and CLS tokens
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-np.random.seed(42)  # for reproducibility
 
 # use GPU if available
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
@@ -32,12 +31,6 @@ with open('../reduced_data/embeddings.npy', 'rb') as f:
     embeddings = np.load(f)
 
 print("Embeddings loaded")
-
-# create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
-print('Creating the MASK and CLS token embeddings...')
-CLS = np.random.randn(1, embeddings.shape[1])
-MASK = np.random.randn(1, embeddings.shape[1])
-print('Done!')
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
@@ -115,7 +108,6 @@ validation_set = torch.utils.data.TensorDataset(validation_set, valid_labels)
 # create the dataloader for the validation set
 print('Creating the dataloader for the validation set...')
 validloader = DataLoader(validation_set, batch_size=32, shuffle=True, num_workers=0)
-print('Done!')
 
 # create the dictionary containing the dataloaders, the masked indices, the masked labels and the compatibility labels
 # for the training and validation set
@@ -123,17 +115,17 @@ dataloaders = {'train': trainloader, 'val': validloader}
 masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=3, num_heads=1,
                dropout=0.2, dim_feedforward=None)
 
 # use Adam as optimizer as suggested in the paper
-optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
+adam = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
 criterion_MLM = CrossEntropyLoss()
-criterion_BC = BCEWithLogitsLoss()
+criterion_BC = CrossEntropyLoss()
 criteria = {'BC': criterion_BC, 'MLM': criterion_MLM}
 
 print('Start pre-training the model')
-trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=20)
+trainer = umBERT_trainer(model=model, optimizer=adam, criterion=criteria, device=device, n_epochs=50)
 trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
 

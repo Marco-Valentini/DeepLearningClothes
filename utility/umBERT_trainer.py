@@ -50,8 +50,10 @@ class umBERT_trainer():
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
                 if phase == 'train':
                     self.model.train()  # set model to training mode
+                    print("Training...")
                 else:
                     self.model.eval()  # set model to evaluate mode
+                    print("Validation...")
 
                 running_loss = 0.0  # keep track of the loss
                 accuracy_classification = 0.0  # keep track of the accuracy of the classification task

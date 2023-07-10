@@ -10,8 +10,7 @@ from utility.dataset_augmentation import create_permutations_per_outfit, mask_on
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from utility.umBERT_trainer import umBERT_trainer
-
-np.random.seed(42)  # for reproducibility
+from constants import MASK, CLS  # import the MASK and CLS tokens
 
 
 def freeze(model, n=None):
@@ -52,11 +51,6 @@ with open('../reduced_data/embeddings.npy', 'rb') as f:
 
 print("Embeddings loaded")
 
-# create the MASK
-print('Creating the MASK token embeddings...')
-CLS = np.random.randn(1, embeddings.shape[1])
-MASK = np.random.randn(1, embeddings.shape[1])
-print('Done!')
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
