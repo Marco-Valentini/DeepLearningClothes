@@ -3,6 +3,7 @@ import torch
 from BERT_architecture.umBERT import umBERT
 from utility.custom_gather import custom_gather
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class umBERT_trainer():
@@ -41,6 +42,7 @@ class umBERT_trainer():
         val_acc_BC = []  # keep track of the accuracy of the validation phase on the MLM task
         train_acc_MLM = []  # keep track of the accuracy of the training phase on the MLM task
         val_acc_MLM = []  # keep track of the accuracy of the validation phase on the MLM task
+        valid_loss_min = np.Inf  # track change in validation loss
         self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
@@ -83,7 +85,8 @@ class umBERT_trainer():
 
                     self.optimizer.zero_grad()  # zero the gradients
 
-                    with torch.set_grad_enabled(phase == 'train'):  # set the gradient computation only if in training phase
+                    with torch.set_grad_enabled(
+                            phase == 'train'):  # set the gradient computation only if in training phase
                         # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
                         output = self.model.forward(inputs)
 
@@ -110,7 +113,7 @@ class umBERT_trainer():
                     running_loss += loss.item() * inputs.size(0)
 
                     # update the accuracy of the classification task
-                    pred_labels_BC = torch.max((self.model.softmax(clf,dim=1)), dim=1).indices
+                    pred_labels_BC = torch.max((self.model.softmax(clf, dim=1)), dim=1).indices
                     pred_labels_BC = pred_labels_BC.to(self.device)  # move the predicted labels_train to the device
                     pred_labels_MLM = torch.max(self.model.softmax(logits, dim=1), dim=1).indices
                     pred_labels_MLM = pred_labels_MLM.to(self.device)  # move the predicted labels_train to the device
@@ -134,6 +137,22 @@ class umBERT_trainer():
                     val_loss.append(epoch_loss)
                     val_acc_BC.append(epoch_accuracy_classification.item())
                     val_acc_MLM.append(epoch_accuracy_MLM.item())
+                    # save model if validation loss has decreased
+                    if epoch_loss <= valid_loss_min:
+                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                            valid_loss_min,
+                            epoch_loss))
+                        print('Validation accuracy BC of the saved model: {:.6f}'.format(epoch_accuracy_classification))
+                        print('Validation accuracy MLM of the saved model: {:.6f}'.format(epoch_accuracy_MLM))
+                        # save a checkpoint dictionary containing the model state_dict
+                        checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
+                                      'num_encoders': self.model.num_encodes,
+                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'dim_feedforward': self.model.dim_feedforward,
+                                      'model_state_dict': self.model.state_dict()}
+                        torch.save(checkpoint,
+                                   'umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
+                        valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
@@ -160,6 +179,7 @@ class umBERT_trainer():
         val_loss = []
         train_acc = []
         val_acc = []
+        valid_loss_min = np.Inf  # track change in validation loss
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -182,7 +202,8 @@ class umBERT_trainer():
                         output = self.model.forward(inputs)  # compute the output of the model (forward pass)
                         clf = self.model.Binary_Classifier(output[:, 0, :])  # compute the logits
                         # clf will be the max value between the two final logits
-                        pred_labels = torch.max(self.model.softmax(clf,dim=1), dim=1).indices  # compute the predicted labels
+                        pred_labels = torch.max(self.model.softmax(clf, dim=1),
+                                                dim=1).indices  # compute the predicted labels
                         pred_labels = pred_labels.unsqueeze(-1)
                         labels_one_hot = torch.nn.functional.one_hot(labels.long(), num_classes=2).to(self.device)
                         loss = self.criterion(clf, labels_one_hot.float())  # compute the loss
@@ -205,6 +226,21 @@ class umBERT_trainer():
                 else:
                     val_loss.append(epoch_loss)
                     val_acc.append(epoch_accuracy.item())
+                    # save model if validation loss has decreased
+                    if epoch_loss <= valid_loss_min:
+                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                            valid_loss_min,
+                            epoch_loss))
+                        print('Validation accuracy on BC of the saved model: {:.6f}'.format(epoch_accuracy))
+                        # save a checkpoint dictionary containing the model state_dict
+                        checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
+                                      'num_encoders': self.model.num_encodes,
+                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'dim_feedforward': self.model.dim_feedforward,
+                                      'model_state_dict': self.model.state_dict()}
+                        torch.save(checkpoint,
+                                   'umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
+                        valid_loss_min = epoch_loss
 
                 print(f'{phase} Loss: {epoch_loss:.10f}')
                 print(f'{phase} Accuracy : {epoch_accuracy:.10f}')
@@ -230,6 +266,7 @@ class umBERT_trainer():
         val_loss = []
         train_acc = []
         val_acc = []
+        valid_loss_min = np.Inf  # track change in validation loss
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -284,6 +321,21 @@ class umBERT_trainer():
                 else:
                     val_loss.append(epoch_loss)
                     val_acc.append(epoch_accuracy.item())
+                    # save model if validation loss has decreased
+                    if epoch_loss <= valid_loss_min:
+                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                            valid_loss_min,
+                            epoch_loss))
+                        print('Validation accuracy on MLM of the saved model: {:.6f}'.format(epoch_accuracy))
+                        # save a checkpoint dictionary containing the model state_dict
+                        checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
+                                      'num_encoders': self.model.num_encodes,
+                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'dim_feedforward': self.model.dim_feedforward,
+                                      'model_state_dict': self.model.state_dict()}
+                        torch.save(checkpoint,
+                                   'umBERT_pretrained_MLM.pth')  # save the checkpoint dictionary to a file
+                        valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train loss')
         plt.plot(val_loss, label='val loss')
         plt.title('Loss in MLM sequential training')
@@ -295,9 +347,98 @@ class umBERT_trainer():
         plt.legend()
         plt.show()
 
-    def fine_tuning(self, dataloaders):
-        pass
-    #TODO aggiungere fine-tuning
+    def fine_tuning(self, dataloaders, freeze=0, fine_tuning_epochs=10):
+        if freeze > 0:
+            count = 0
+            for param in self.model.parameters():
+                if count < freeze:
+                    param.requires_grad = False
+                count += 1
+        train_loss = []
+        val_loss = []
+        train_acc = []
+        val_acc = []
+        valid_loss_min = np.Inf  # track change in validation loss
+
+        self.model.to(self.device)
+
+        for epoch in range(fine_tuning_epochs):
+            for phase in ['train', 'val']:
+                if phase == 'train':
+                    self.model.train()
+                else:
+                    self.model.eval()
+
+                running_loss = 0.0
+                accuracy = 0.0
+
+                for input, labels in dataloaders[phase]:
+                    input = input.to(self.device)  # move the data to the device
+                    labels_MLM = labels[:, 0]  # take the labels of the MLM task
+                    masked_positions = labels[:, 1]  # take the masked positions
+                    labels_MLM = labels_MLM.to(self.device)  # move the data to the device
+                    masked_positions = masked_positions.to(self.device)  # move the data to the device
+
+                    # optimizer is taken from the trainer (if necessary it is changed in the main)
+                    self.optimizer.zero_grad()  # zero the gradients
+
+                    with torch.set_grad_enabled(
+                            phase == 'train'):  # set the gradient computation only if in training phase
+                        output = self.model.forward(input)  # compute the output of the model (forward pass)
+                        masked_elements = custom_gather(output, masked_positions,
+                                                        self.device)  # select the masked elements
+                        logits = self.model.ffnn(masked_elements)  # compute the logits
+                        logits = logits.view(-1, self.model.catalogue_size)
+                        pred_labels = torch.max(self.model.softmax(logits, dim=1), dim=1).indices  # predicted labels
+                        labels_MLM_one_hot = torch.nn.functional.one_hot(labels_MLM.long(),
+                                                                         num_classes=self.model.catalogue_size).to(
+                            self.device)
+                        loss = self.criterion(logits,
+                                              labels_MLM_one_hot.float())  # compute the loss # define the loss from the main
+                        if phase == 'train':
+                            loss.backward()
+                            self.optimizer.step()
+
+                    running_loss += loss.item() * input.size(0)  # update the loss value (multiply by the batch size)
+                    labels_MLM = labels_MLM.unsqueeze(-1)
+                    pred_labels = pred_labels.unsqueeze(-1)
+                    accuracy += torch.sum(pred_labels == labels_MLM)  # update the accuracy of the MLM task
+                epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
+                epoch_accuracy = accuracy / len(
+                    dataloaders[phase].dataset)  # compute the average accuracy of the MLM task of the epoch
+
+                print(f'{phase} Loss: {epoch_loss}')
+                print(f'{phase} Accuracy: {epoch_accuracy}')
+                if phase == 'train':
+                    train_loss.append(epoch_loss)
+                    train_acc.append(epoch_accuracy.item())
+                else:
+                    val_loss.append(epoch_loss)
+                    val_acc.append(epoch_accuracy.item())
+                    # save model if validation loss has decreased
+                    if epoch_loss <= valid_loss_min:
+                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                            valid_loss_min,
+                            epoch_loss))
+                        print('Validation accuracy on MLM fine tuning of the saved model: {:.6f}'.format(epoch_accuracy))
+                        # save a checkpoint dictionary containing the model state_dict
+                        checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
+                                      'num_encoders': self.model.num_encodes,
+                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'dim_feedforward': self.model.dim_feedforward,
+                                      'model_state_dict': self.model.state_dict()}
+                        torch.save(checkpoint,
+                                   'umBERT_fine_tuned.pth')
+        plt.plot(train_loss, label='train loss for fine tuning')
+        plt.plot(val_loss, label='val loss for fine tuning')
+        plt.title('Loss in MLM fine tuning')
+        plt.legend()
+        plt.show()
+        plt.plot(train_acc, label='train acc for fine tuning')
+        plt.plot(val_acc, label='val acc for fine tuning')
+        plt.title('Accuracy in MLM fine tuning')
+        plt.legend()
+        plt.show()
 
 
 class umBERT_evaluator():

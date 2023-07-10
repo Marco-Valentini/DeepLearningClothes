@@ -56,6 +56,8 @@ CLS_layer_train = training_set[0, :, :]  # CLS is the first element of the tenso
 training_set = training_set[1:, :, :]  # remove CLS from the tensor
 mean = training_set.mean(dim=0).mean(dim=0)
 std = training_set.std(dim=0).std(dim=0)
+torch.save(mean, '../reduced_data/mean.pth')
+torch.save(std, '../reduced_data/std.pth')
 training_set = (training_set - mean) / std
 training_set = torch.cat((CLS_layer_train.unsqueeze(0), training_set), dim=0)  # concatenate CLS to the scaled tensor
 # mask the input (using the MASK embedding)
@@ -134,42 +136,12 @@ print('Start pre-training the model')
 trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=20)
 trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
+
+# save a checkpoint dictionary containing the model state_dict
+checkpoint = {'d_model': model.d_model, 'catalogue_size': model.catalogue_size, 'num_encoders': model.num_encodes,
+              'num_heads': model.num_heads, 'dropout': model.dropout, 'dim_feedforward': model.dim_feedforward,
+              'model_state_dict': model.state_dict()}
 # save the model into a checkpoint file
-torch.save(model.state_dict(), '../models/umBERT_pretrained_jointly.pth')
+torch.save(checkpoint, '../models/umBERT_pretrained_jointly.pth')
 
-#TODO save the checkpoints containing the model architecture
-
-# load the model from the checkpoint
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
-                dropout=0.2, dim_feedforward=None)
-model.load_state_dict(torch.load('../models/umBERT_pretrained_jointly.pth'))
-model.to(device)
-
-# import the test set
-test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
-compatibility_test = test_dataframe['compatibility'].values
-test_dataframe.drop(columns='compatibility', inplace=True)
-
-# create the tensor dataset for the test set (which contains the CLS embedding)
-print('Creating the tensor dataset for the test set...')
-test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
-# mask the input (using the MASK embedding)
-print('Masking the input...')
-test_set, masked_indexes_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
-
-# labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
-BC_test_labels = torch.Tensor(compatibility_test).unsqueeze(1)
-MLM_test_labels = torch.Tensor(masked_labels_test).unsqueeze(1)
-masked_test_positions = torch.Tensor(masked_indexes_test).unsqueeze(1)
-# concatenate the labels
-test_labels = torch.concat((BC_test_labels, MLM_test_labels, masked_test_positions), dim=1)
-# create a Tensor Dataset
-test_set = torch.utils.data.TensorDataset(test_set, test_labels)
-# create the dataloader for the test set
-print('Creating the dataloader for the test set...')
-testloader = DataLoader(test_set, batch_size=16, shuffle=True, num_workers=0)
-print('Done!')
-
-# evaluate the model on the test set
-print('Start evaluating the model on the test set')
-accuracy_MLM, accuracy_BC = trainer.evaluate_BERT_like(testloader)
+# TODO save the checkpoints containing the model architecture

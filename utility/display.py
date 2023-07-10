@@ -1,31 +1,31 @@
 import cv2
 import matplotlib.pyplot as plt
 
-def display_items(df_reduced):
+def display_items(df_reduced,number_of_items=10):
     """
     Given the reduced version of the catalogue, display the first 10 items
     :param df_reduced:
     :return:
     """
-    indeces = list(df_reduced['ID'])[0:10]
-    labels = list(df_reduced['Semantic_category'])[0:10]
+    indeces = list(df_reduced['ID'])[0:number_of_items]
+    labels = list(df_reduced['Semantic_category'])[0:number_of_items]
     fig = plt.figure(figsize=(25,20))
     images=[]
-    for idx in range(10):
+    for idx in range(number_of_items):
         image = cv2.imread('../dataset/images/' + indeces[idx] + '.jpg')
         rgbImg = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(rgbImg)
 
-    for idx in range(10):
-        ax = fig.add_subplot(2,int(10/2),idx+1,xticks=[],yticks=[])
+    for idx in range(number_of_items):
+        ax = fig.add_subplot(2,int(number_of_items/2),idx+1,xticks=[],yticks=[])
         ax.set_title(labels[idx])
         plt.imshow(images[idx])
     plt.show()
 
 
 
-def display_outfits(outfits):
-    for i in range(5):
+def display_outfits(outfits,number_of_outfits=5):
+    for i in range(number_of_outfits):
         images = []
         clothes_list = outfits[i]['item_id']
         img1 = cv2.imread('../dataset/images/' + clothes_list[0] + '.jpg')

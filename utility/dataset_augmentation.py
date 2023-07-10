@@ -9,20 +9,26 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
 
-def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, with_CLS=True, batch_first=True):
+def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame, MASK, input_contains_CLS, device, output_in_batch_first=True):
     """
     this function takes as input an outfit (a tensor of shape (5, n_outfits, emb_size)) and a dataframe containing the labels_train of the items in the outfit.
     It returns the outfit with a masked item (one item per time for each outfit) and the label of the masked item.
     :param outfit: the outfit to mask (a tensor of shape (5, n_outfits, emb_size))
     :param outfit_dataframe: Dataframe containing the labels_train of the items in the outfit
     :param MASK: the embedding token MASK (a tensor of shape (1, emb_size))
-    :param with_CLS: if True, the CLS token is preserved, otherwise it is removed from the tensor (default: True)
+    :param input_contains_CLS: if True, the CLS token is preserved, if False assume that the CLS token is not present in the tensor
     :param batch_first: if True, the batch dimension of the output is the first dimension of the tensor (default: True)
     :return: if batch_first=False:the outfit with a masked item (a tensor of shape (5, n_outfits*sequence_length, emb_size) if with_CLS=True, (4, n_outfits, emb_size) otherwise),
     otherwise: the outfit with a masked item (a tensor of shape (n_outfits*sequence_length, 5, emb_size) if with_CLS=True, (n_outfits, 4, emb_size) otherwise),
     """
-    if with_CLS:
-        CLS = outfit[0, :, :]  # CLS is the first element of the tensor, extract it
+    if outfit.device == 'cpu':
+        outfit = outfit.to(device)
+    print(f"the outfit is on the {outfit.device}")
+    if MASK.device == 'cpu':
+        MASK = MASK.to(device)
+    print(f"the MASK is on the {MASK.device}")
+    if input_contains_CLS:
+        CLS = outfit[0, :, :].to(device)  # CLS is the first element of the tensor, extract it
         outfit = outfit[1:, :, :]  # remove CLS from the tensor
     labels = []
     masked_indexes = []  # initialize the list of the indexes of the masked items
@@ -31,7 +37,7 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
     sequence_length = outfit.shape[0]  # 4
     n_outfits = outfit.shape[1]
     emb_size = outfit.shape[2]
-    masked_outfit = torch.zeros(sequence_length, n_outfits * sequence_length, emb_size)  # (4, n_outfits*4, emb_size)
+    masked_outfit = torch.zeros(sequence_length, n_outfits * sequence_length, emb_size).to(device)  # (4, n_outfits*4, emb_size)
     for i in range(outfit.shape[1]):  # for each outfit
         # outfit_labels is of the form [211990161,183179503,190445143,211444470]# for each outfit
         outfit_labels = outfit_dataframe.loc[i].values  # get the labels_train of the items in the outfit
@@ -42,14 +48,16 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
             labels.append(label)  # save the label of the masked item
             masked_outfit[masked_idx, i * sequence_length + masked_idx, :] = MASK  # mask the item
 
-    if with_CLS:
+    if input_contains_CLS:
         # make CLS a tensor of the same shape of the masked_outfit_train tensor
-        CLS = CLS.unsqueeze(1).repeat(1, sequence_length, 1)
+        CLS = CLS.repeat(1, sequence_length, 1)
+        print(f"CLS device: {CLS.device}")
+        print(f"masked_outfit device: {masked_outfit.device}")
         masked_outfit = torch.cat((CLS, masked_outfit), dim=0)  # add CLS to the masked_outfit_train tensor
         # add 1 to the indexes because of CLS
         masked_indexes = [x + 1 for x in masked_indexes]
 
-    if batch_first:
+    if output_in_batch_first:
         # transpose the tensor dataset to have the batch dimension first (as required by the model)
         masked_outfit = masked_outfit.transpose(0, 1)
 
