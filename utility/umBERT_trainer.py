@@ -1,4 +1,6 @@
 import torch
+
+from BERT_architecture.umBERT import umBERT
 from utility.custom_gather import custom_gather
 import matplotlib.pyplot as plt
 
@@ -11,7 +13,7 @@ class umBERT_trainer():
     - classification only (BC)
     """
 
-    def __init__(self, model, optimizer, criterion, device, n_epochs=500):
+    def __init__(self, model: umBERT, optimizer, criterion, device, n_epochs=500):
         """
         This function initializes the umBERT_trainer class with the following parameters:
         :param model: the umBERT model to train
@@ -296,3 +298,56 @@ class umBERT_trainer():
     def fine_tuning(self, dataloaders):
         pass
     #TODO aggiungere fine-tuning
+
+
+class umBERT_evaluator():
+    def __init__(self, model, device):
+        self.model = model
+        self.device = device
+
+    def evaluate_BERT_like(self, dataloader):
+        accuracy_MLM = self.test_MLM(dataloader)
+        accuracy_BC = self.test_BC(dataloader)
+        return accuracy_MLM, accuracy_BC
+
+    def test_BC(self, dataloader):
+        self.model.eval()
+        accuracy = 0.0
+        for inputs, labels in dataloader:
+            inputs = inputs.to(self.device)  # move the data to the device
+            # take the labels of the classification task
+            labels_BC = labels[:, 0]
+            # convert the tensor labels_BC to LongTensor
+            labels_BC = labels_BC.type(torch.LongTensor)
+            labels_BC = labels_BC.to(self.device)  # move labels_BC to the device
+
+            with torch.no_grad():
+                preds = self.model.predict_BC(inputs)
+                # compute the accuracy
+                accuracy += torch.sum(preds == labels_BC)
+
+        accuracy = accuracy / len(dataloader.dataset)
+        return accuracy
+
+    def test_MLM(self, dataloader):
+        self.model.eval()
+        accuracy = 0.0
+        for inputs, labels in dataloader:
+            inputs = inputs.to(self.device)  # move the data to the device
+            # take the labels of the MLM task
+            labels_MLM = labels[:, 1]
+            # convert the tensor labels_MLM to LongTensor
+            labels_MLM = labels_MLM.type(torch.LongTensor)
+            labels_MLM = labels_MLM.to(self.device)  # move them to the device
+
+            # take the positions of the masked elements
+            masked_positions = labels[:, 2]
+            # move masked_positions to the device
+            masked_positions = masked_positions.to(self.device)
+            with torch.no_grad():
+                preds = self.model.predict_MLM(inputs, masked_positions, self.device)
+                # compute the accuracy
+                accuracy += torch.sum(preds == labels_MLM)
+
+        accuracy = accuracy / len(dataloader.dataset)
+        return accuracy

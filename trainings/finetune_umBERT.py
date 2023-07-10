@@ -78,7 +78,8 @@ training_set = (training_set - mean) / std
 
 train_dataframe = pd.DataFrame(np.repeat(train_dataframe.values, 24, axis=0), columns=train_dataframe.columns)
 
-masked_outfit_train, masked_indexes_train, labels_train = mask_one_item_per_time(training_set, train_dataframe, MASK, with_CLS=False)
+masked_outfit_train, masked_indexes_train, labels_train = mask_one_item_per_time(training_set, train_dataframe, MASK,
+                                                                                 with_CLS=False)
 
 train_labels = torch.Tensor(labels_train).reshape(len(labels_train), 1)
 masked_positions_tensor_train = torch.Tensor(masked_indexes_train).reshape(len(masked_indexes_train), 1)
@@ -103,7 +104,8 @@ validation_set = (validation_set - mean) / std
 # repeat each row of the train dataframe 24 times (all the permutations of the outfit)
 valid_dataframe = pd.DataFrame(np.repeat(valid_dataframe.values, 24, axis=0), columns=train_dataframe.columns)
 # mask one item per time
-masked_outfit_val, masked_indexes_val, labels_val = mask_one_item_per_time(validation_set, valid_dataframe, MASK, with_CLS=False)
+masked_outfit_val, masked_indexes_val, labels_val = mask_one_item_per_time(validation_set, valid_dataframe, MASK,
+                                                                           with_CLS=False)
 # create the validation set for the fill in the blank task
 valid_labels = torch.Tensor(labels_val).reshape(len(labels_val), 1)
 masked_positions_tensor_valid = torch.Tensor(masked_indexes_val).reshape(len(masked_indexes_val), 1)
@@ -123,14 +125,15 @@ model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1],
 model.load_state_dict(torch.load('../models/umBERT.pth'))
 
 # define the optimizer
-optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01) #TODO valutare anche adamW o LiON
+optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999),
+                 weight_decay=0.01)  # TODO valutare anche adamW o LiON
 # put the model on the GPU
 model.to(device)
 # define the loss function
 criterion = nn.CrossEntropyLoss()
 # train the model
 print('Start fine tuning...')
-trainer = umBERT_trainer(model,optimizer,criterion,device,n_epochs=10)
+trainer = umBERT_trainer(model, optimizer, criterion, device, n_epochs=10)
 trainer.fine_tuning(dataloaders)
 print('Fine tuning completed!')
 
@@ -140,5 +143,3 @@ model.save('../models/umBERT_finetuned.pth')
 # test the model
 print('Testing the model...')
 # TODO define test set and evaluate the model
-
-

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utility.custom_gather import custom_gather
+
 
 class umBERT(nn.Module):
     """
@@ -35,7 +37,6 @@ class umBERT(nn.Module):
         self.ffnn = nn.Linear(d_model, catalogue_size)  # the output of the transformer is fed to a linear layer
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
         self.Binary_Classifier = nn.Linear(d_model, 2)  # second task: binary classification
-        self.sigmoid = F.sigmoid  # the output of the binary classifier layer is fed to a sigmoid layer
 
     def forward(self, outfit):
         """
@@ -61,13 +62,22 @@ class umBERT(nn.Module):
         :return: the probability distribution over the catalogue
         """
         # says if the input outfit is compatible or not
-        return torch.max(self.sigmoid(self.Binary_Classifier(self.forward(test_set))),dim=1).indices # TODO check for dim
+        output = self.forward(test_set)  # compute the output of the model (forward pass)
+        clf = self.Binary_Classifier(output[:, 0, :])  # compute the logits
+        # clf will be the max value between the two final logits
+        pred_labels = torch.max(self.softmax(clf, dim=1), dim=1).indices  # compute the predicted labels
+        return pred_labels  # TODO check for dim
 
-    def predict_MLM(self, test_set):
+    def predict_MLM(self, test_set, masked_positions, device):
         """
         This function takes as input an outfit and returns the probability distribution over the catalogue
         :param test_set: the outfit embedding
         :return: the probability distribution over the catalogue
         """
-        return torch.max(self.softmax(self.ffnn(self.forward(test_set)),dim=1),dim=1).indices  # says which is the masked item
+        output = self.forward(test_set)  # compute the output of the transformer
+        masked_elements = custom_gather(output, masked_positions, device)  # select the masked elements
+        logits = self.ffnn(masked_elements)  # compute the logits
+        logits = logits.view(-1, self.catalogue_size)
+        pred_labels = torch.max(self.softmax(logits, dim=1), dim=1).indices
+        return pred_labels  # says which is the masked item
         # TODO check for dim

@@ -120,34 +120,9 @@ print('Done!')
 dataloaders = {'train': trainloader, 'val': validloader}
 masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
 
-# import the test set
-test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
-compatibility_test = test_dataframe['compatibility'].values
-test_dataframe.drop(columns='compatibility', inplace=True)
-
-# # create the tensor dataset for the test set (which contains the CLS embedding)
-# print('Creating the tensor dataset for the test set...')
-# test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
-# # mask the input (using the MASK embedding)
-# print('Masking the input...')
-# test_set, masked_indexes_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
-#
-# # labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
-# BC_test_labels = torch.Tensor(compatibility_test).unsqueeze(1)
-# MLM_test_labels = torch.Tensor(masked_labels_test).unsqueeze(1)
-# masked_test_positions = torch.Tensor(masked_indexes_test).unsqueeze(1)
-# # concatenate the labels
-# test_labels = torch.concat((BC_test_labels, MLM_test_labels, masked_test_positions), dim=1)
-# # create a Tensor Dataset
-# test_set = torch.utils.data.TensorDataset(test_set, test_labels)
-# # create the dataloader for the test set
-# print('Creating the dataloader for the test set...')
-# testloader = DataLoader(test_set, batch_size=16, shuffle=True, num_workers=0)
-# print('Done!')
-
 # define the umBERT model
 model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
-               dropout=0.3, dim_feedforward=None)
+               dropout=0.2, dim_feedforward=None)
 
 # use Adam as optimizer as suggested in the paper
 optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
@@ -156,10 +131,45 @@ criterion_BC = BCEWithLogitsLoss()
 criteria = {'BC': criterion_BC, 'MLM': criterion_MLM}
 
 print('Start pre-training the model')
-trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=500)
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criteria, device=device, n_epochs=20)
 trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
 # save the model into a checkpoint file
 torch.save(model.state_dict(), '../models/umBERT_pretrained_jointly.pth')
 
 #TODO save the checkpoints containing the model architecture
+
+# load the model from the checkpoint
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
+                dropout=0.2, dim_feedforward=None)
+model.load_state_dict(torch.load('../models/umBERT_pretrained_jointly.pth'))
+model.to(device)
+
+# import the test set
+test_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_test.csv')
+compatibility_test = test_dataframe['compatibility'].values
+test_dataframe.drop(columns='compatibility', inplace=True)
+
+# create the tensor dataset for the test set (which contains the CLS embedding)
+print('Creating the tensor dataset for the test set...')
+test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
+# mask the input (using the MASK embedding)
+print('Masking the input...')
+test_set, masked_indexes_test, masked_labels_test = masking_input(test_set, test_dataframe, MASK)
+
+# labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
+BC_test_labels = torch.Tensor(compatibility_test).unsqueeze(1)
+MLM_test_labels = torch.Tensor(masked_labels_test).unsqueeze(1)
+masked_test_positions = torch.Tensor(masked_indexes_test).unsqueeze(1)
+# concatenate the labels
+test_labels = torch.concat((BC_test_labels, MLM_test_labels, masked_test_positions), dim=1)
+# create a Tensor Dataset
+test_set = torch.utils.data.TensorDataset(test_set, test_labels)
+# create the dataloader for the test set
+print('Creating the dataloader for the test set...')
+testloader = DataLoader(test_set, batch_size=16, shuffle=True, num_workers=0)
+print('Done!')
+
+# evaluate the model on the test set
+print('Start evaluating the model on the test set')
+accuracy_MLM, accuracy_BC = trainer.evaluate_BERT_like(testloader)
