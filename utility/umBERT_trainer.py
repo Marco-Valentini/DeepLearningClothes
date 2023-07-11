@@ -236,12 +236,12 @@ class umBERT_trainer():
                         print('Validation accuracy on BC of the saved model: {:.6f}'.format(epoch_accuracy))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
-                                      'num_encoders': self.model.num_encodes,
+                                      'num_encoders': self.model.num_encoders,
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
-                                   'umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
+                                   '../models/umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
 
                 print(f'{phase} Loss: {epoch_loss:.10f}')
@@ -331,12 +331,12 @@ class umBERT_trainer():
                         print('Validation accuracy on MLM of the saved model: {:.6f}'.format(epoch_accuracy))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
-                                      'num_encoders': self.model.num_encodes,
+                                      'num_encoders': self.model.num_encoders,
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
-                                   'umBERT_pretrained_MLM.pth')  # save the checkpoint dictionary to a file
+                                   '../models/umBERT_pretrained_MLM.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train loss')
         plt.plot(val_loss, label='val loss')
@@ -425,12 +425,12 @@ class umBERT_trainer():
                         print('Validation accuracy on MLM fine tuning of the saved model: {:.6f}'.format(epoch_accuracy))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
-                                      'num_encoders': self.model.num_encodes,
+                                      'num_encoders': self.model.num_encoders,
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
-                                   'umBERT_fine_tuned.pth')
+                                   '../models/umBERT_fine_tuned.pth')
         plt.plot(train_loss, label='train loss for fine tuning')
         plt.plot(val_loss, label='val loss for fine tuning')
         plt.title('Loss in MLM fine tuning')

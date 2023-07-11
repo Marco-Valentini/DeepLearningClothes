@@ -28,13 +28,13 @@ with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
 
-with open('../reduced_data/embeddings.npy', 'rb') as f:
+with open('../reduced_data/embeddings_512.npy', 'rb') as f:
     embeddings = np.load(f)
 
 print("Embeddings loaded")
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8, dropout=0.2,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=1, dropout=0.2,
                dim_feedforward=None)
 
 # import the training set
@@ -58,6 +58,7 @@ training_set = (training_set - mean) / std
 training_set = torch.cat((CLS_layer_train.unsqueeze(0), training_set), dim=0)  # concatenate CLS to the scaled tensor
 compatibility_train = np.repeat(compatibility_train, 24, axis=0)  # repeat the compatibility values 24 times
 training_dataset_BC = torch.utils.data.TensorDataset(training_set.transpose(0, 1), torch.Tensor(compatibility_train))
+print("Training set for binary classification created on the device ")
 trainloader_BC = DataLoader(training_dataset_BC, batch_size=8, num_workers=0, shuffle=True)
 print("Training set for binary classification created")
 # training set is a tensor of shape (2736,4,512), masked_positions_train is a list of length 2736,
@@ -70,7 +71,7 @@ MLM_train_labels = torch.Tensor(actual_masked_values_train).reshape(len(actual_m
 masked_positions_tensor_train = torch.Tensor(masked_positions_train).reshape(len(masked_positions_train), 1)
 train_labels_MLM = torch.concat((MLM_train_labels, masked_positions_tensor_train), dim=1)
 training_dataset_MLM = torch.utils.data.TensorDataset(training_set_MLM, train_labels_MLM)
-trainloader_MLM = DataLoader(training_dataset_MLM, batch_size=8, num_workers=0, shuffle=True)
+trainloader_MLM = DataLoader(training_dataset_MLM, batch_size=32, num_workers=0, shuffle=True)
 print("Training set for masked language model created")
 
 # import the validation set
@@ -117,15 +118,16 @@ dataloaders_MLM = {'train': trainloader_MLM, 'val': validloader_MLM}
 optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01)
 # put the model on the GPU
 model.to(device)
-criterion_1 = nn.BCEWithLogitsLoss()
+criterion_1 = nn.CrossEntropyLoss()
 
 print('Start pre-training BC the model')
 
 trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion_1, device=device, n_epochs=20)
-trainer.pre_train_BC(dataloaders=dataloaders_BC)
+# trainer.pre_train_BC(dataloaders=dataloaders_BC)
+checkpoint = torch.load('../models/umBERT_pretrained_BC.pth')
+model.load_state_dict(checkpoint['model_state_dict'])
 print('Pre-training on BC completed')
 
-torch.save(model.state_dict(), '../models/umBERT_pretrained_1.pth')
 
 criterion_2 = nn.CrossEntropyLoss()
 trainer.criterion = criterion_2
@@ -134,7 +136,6 @@ trainer.pre_train_MLM(dataloaders=dataloaders_MLM)
 print('Pre-training on MLM completed')
 
 # save the model into a checkpoint file
-torch.save(model.state_dict(), '../models/umBERT_pretrained_2.pth')
 
 #TODO save the checkpoints containing the model architecture
 
@@ -156,4 +157,4 @@ test_dataset = torch.utils.data.TensorDataset(test_set_MLM, test_labels)
 print("Test set for masked language model created")
 
 # create the test dataloader
-testloader = DataLoader(test_dataset, batch_size=16, num_workers=0, shuffle=True)
+testloader = DataLoader(test_dataset, batch_size=32, num_workers=0, shuffle=True)

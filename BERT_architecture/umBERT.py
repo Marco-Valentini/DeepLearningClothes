@@ -22,6 +22,9 @@ class umBERT(nn.Module):
         super(umBERT, self).__init__()
         if dim_feedforward is None:
             dim_feedforward = d_model * 4  # according to the paper
+        self.d_model = d_model  # the dimension of the embeddings
+        self.num_encoders = num_encoders  # the number of encoders in the encoder stack
+        self.num_heads = num_heads  # the number of heads in the multi-head attention
         self.catalogue_size = catalogue_size  # number of items in the catalogue
         self.dim_feedforward = dim_feedforward
         self.catalogue_size = catalogue_size  # number of items in the catalogue

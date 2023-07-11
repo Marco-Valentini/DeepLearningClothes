@@ -169,5 +169,5 @@ vcs.xml
 .DS_Store
 /dataset_cnn_fine_tuning/
 /dataset_catalogue/
-/reduced_data/embeddings.npy
+/reduced_data/embeddings_512.npy
 /reduced_data/IDs_list

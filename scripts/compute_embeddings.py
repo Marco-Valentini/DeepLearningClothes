@@ -52,6 +52,6 @@ with open("../reduced_data/IDs_list", "w") as fp:
     json.dump(IDs, fp)
 print("IDs saved")
 
-with open('../reduced_data/embeddings.npy', 'wb') as f:
+with open('../reduced_data/embeddings_512.npy', 'wb') as f:
     np.save(f, embeddings)
 print("Embeddings saved")

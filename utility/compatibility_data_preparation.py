@@ -67,7 +67,7 @@ def remove_and_compact(df):
         row = df_tmp.loc[i]  # retrieve the row
         filtered_row = [el for el in row.values if el is not None]  # remove the None values
         # if there are more than 4 elements remove the elements belonging to the same category
-        if len(filtered_row) > 4:
+        if len(filtered_row) >= 4:
             clothes = []
             categories = []
             for item in filtered_row:
@@ -79,13 +79,33 @@ def remove_and_compact(df):
             if len(clothes) < 4:  # if after the process there are less than 4 elements
                 filtered_row = [None, None, None, None]  # substitute with None values (will be dropped later)
             else:
-                filtered_row = clothes  # otherwise substitute with the new list
+                filtered_row = clothes
+        else:
+            filtered_row = [None, None, None, None]  # substitute with None values (will be dropped later)
         df_new.loc[i] = filtered_row  # insert the filtered row in the new dataframe
     df_new.insert(0, column='compatibility', value=compatibility,
                   allow_duplicates=True)  # insert the compatibility column
     df_new = df_new.dropna(axis=0)  # drop the rows containing None values
     df_new.reset_index(inplace=True, drop=True)  # reset the index
     return df_new
+
+def count_categories(column):
+    # to check that all went good
+    count_tops = 0
+    count_bottoms = 0
+    count_accessories = 0
+    count_shoes = 0
+    for item in column:
+        category = catalogue['Semantic_category'].values[list(catalogue['ID'].values).index(int(item))]
+        if category == 'tops':
+            count_tops += 1
+        elif category == 'bottoms':
+            count_bottoms += 1
+        elif category == 'shoes':
+            count_shoes += 1
+        elif category == 'accessories':
+            count_accessories +=1
+    return count_tops,count_bottoms, count_shoes, count_accessories
 
 
 # import the catalogue ID-Category
@@ -149,6 +169,28 @@ for data_set in ['train', 'test', 'valid']:  # for each data set apply the follo
     # check if the classes are balanced or not
     value_counts = df['compatibility'].value_counts()
     print(f"Proportion of negative/positive samples {value_counts}")
+    # check the number of items for each column
+    print(f"Phase  {data_set}")
+    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_1'])
+    print(f"Number of tops in column 1: {count_tops}")
+    print(f"Number of bottoms in column 1: {count_bottoms}")
+    print(f"Number of shoes in column 1: {count_shoes}")
+    print(f"Number of accessories in column 1: {count_accessories}")
+    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_2'])
+    print(f"Number of tops in column 2: {count_tops}")
+    print(f"Number of bottoms in column 2: {count_bottoms}")
+    print(f"Number of shoes in column 2: {count_shoes}")
+    print(f"Number of accessories in column 2: {count_accessories}")
+    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_3'])
+    print(f"Number of tops in column 3: {count_tops}")
+    print(f"Number of bottoms in column 3: {count_bottoms}")
+    print(f"Number of shoes in column 3: {count_shoes}")
+    print(f"Number of accessories in column 3: {count_accessories}")
+    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_4'])
+    print(f"Number of tops in column 4: {count_tops}")
+    print(f"Number of bottoms in column 4: {count_bottoms}")
+    print(f"Number of shoes in column 4: {count_shoes}")
+    print(f"Number of accessories in column 4: {count_accessories}")
 
     # save the reduced dataset
     destination_path = f'../reduced_data/reduced_compatibility_{data_set}.csv'
