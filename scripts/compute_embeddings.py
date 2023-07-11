@@ -23,6 +23,9 @@ fashion_resnet18 = resnet18()
 fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=checkpoint['dim_embeddings'], num_classes=4)
 
 fashion_resnet18.load_state_dict(checkpoint['state_dict'])  # load the weights of the model finetuned_fashion_resnet18.pth
+fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=dim_embeddings, num_classes=4)
+fashion_resnet18.load_state_dict(torch.load(
+    '../models/finetuned_fashion_resnet18.pth'))  # load the weights of the model finetuned_fashion_resnet18.pth
 fashion_resnet18.eval()  # set the model to evaluation mode
 fashion_resnet18.to(device)  # set the model to run on the device
 
