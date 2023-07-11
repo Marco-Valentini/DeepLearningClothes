@@ -148,12 +148,12 @@ class umBERT_trainer():
                         print('Validation accuracy MLM of the saved model: {:.6f}'.format(epoch_accuracy_MLM))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.model.d_model, 'catalogue_size': self.model.catalogue_size,
-                                      'num_encoders': self.model.num_encodes,
+                                      'num_encoders': self.model.num_encoders,
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
-                                   'umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
+                                   '../models/umBERT_pretrained_BERT_like.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
@@ -366,6 +366,7 @@ class umBERT_trainer():
 
         for epoch in range(fine_tuning_epochs):
             for phase in ['train', 'val']:
+                print(f'Epoch: {epoch + 1}/{fine_tuning_epochs} | Phase: {phase}')
                 if phase == 'train':
                     self.model.train()
                 else:
@@ -431,6 +432,7 @@ class umBERT_trainer():
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
                                    '../models/umBERT_fine_tuned.pth')
+                        valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train loss for fine tuning')
         plt.plot(val_loss, label='val loss for fine tuning')
         plt.title('Loss in MLM fine tuning')
@@ -444,7 +446,7 @@ class umBERT_trainer():
 
 
 class umBERT_evaluator():
-    def __init__(self, model, device):
+    def __init__(self, model: umBERT, device):
         self.model = model
         self.device = device
 
@@ -494,3 +496,6 @@ class umBERT_evaluator():
 
         accuracy = accuracy / len(dataloader.dataset)
         return accuracy
+
+    def evaluate_final_task(self, dataloader):
+        pass

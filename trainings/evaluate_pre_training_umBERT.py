@@ -12,6 +12,7 @@ from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_da
 from utility.masking_input import masking_input
 from utility.umBERT_trainer import umBERT_evaluator
 from utility.dataset_augmentation import mask_one_item_per_time
+from constants import MASK, CLS  # import the MASK and CLS tokens
 
 
 # set the working directory to the path of the file
@@ -35,17 +36,12 @@ with open('../reduced_data/embeddings_512.npy', 'rb') as f:
 
 print("Embeddings loaded")
 
-# create MASK and CLS token embeddings as random tensors with the same shape of the embeddings
-print('Creating the MASK and CLS token embeddings...')
-CLS = np.random.randn(1, embeddings.shape[1])
-MASK = np.random.randn(1, embeddings.shape[1])
-
-file_path = '../models/umBERT_pretrained_1.pth'
+file_path = '../models/umBERT_pretrained_BERT_like.pth'
 checkpoint = torch.load(file_path)
 
-model = umBERT(catalogue_size=checkpoint['catalogue_size'], d_model=checkpoint['d_model'], num_encoders=checkpoint['num_encoder'], num_heads=checkpoint['num_heads'],
+model = umBERT(catalogue_size=checkpoint['catalogue_size'], d_model=checkpoint['d_model'], num_encoders=checkpoint['num_encoders'], num_heads=checkpoint['num_heads'],
                 dropout=checkpoint['dropout'], dim_feedforward=checkpoint['dim_feedforward'])
-model.load_state_dict(checkpoint['state_dict'])
+model.load_state_dict(checkpoint['model_state_dict'])
 model.to(device)
 
 # import the validation set
@@ -57,23 +53,19 @@ test_dataframe.drop(columns='compatibility', inplace=True)
 print('Creating the tensor dataset for the test set...')
 test_set = create_tensor_dataset_for_BC_from_dataframe(test_dataframe, embeddings, IDs, CLS)
 # remove the CLS
-CLS = test_set[0, :, :].to(device)
-test_set = test_set[1:, :, :].to(device)
+test_set = test_set[1:, :, :]
 mean = torch.load('../reduced_data/mean.pth') # this is computed during pre training on the train set
 std = torch.load('../reduced_data/std.pth')
 test_set = (test_set - mean) / std
 
 # mask the input (using the MASK embedding)
 print('Masking the input...')
-MASK = torch.Tensor(MASK.reshape(1,1,embeddings.shape[1])).to(device)
-# remove the CLS
-test_set = test_set[1:, :, :].to(device)
-test_set, masked_indexes_test, masked_labels_test = mask_one_item_per_time(test_set, test_dataframe, MASK,with_CLS=False,batch_first=True) # TODO riparti da qua
-# replicate the CLS
-CLS = CLS.repeat(1,test_set.shape[1],1)
-CLS = CLS.view(test_set.shape[0],-1,embeddings.shape[1])
-# re-attach the CLS
-test_set = torch.cat((CLS.view(test_set.shape[0],-1,embeddings.shape[1]), test_set), dim=1)
+test_set, masked_indexes_test, masked_labels_test = mask_one_item_per_time(test_set,
+                                                                           test_dataframe,
+                                                                           MASK,
+                                                                           input_contains_CLS=False,
+                                                                           device=device,
+                                                                           output_in_batch_first=True)
 
 # labels for BC are the same as the compatibility labels, labels for MLM are the masked labels
 compatibility_test = compatibility_test.repeat(4)

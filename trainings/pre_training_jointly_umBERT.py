@@ -40,10 +40,6 @@ train_dataframe.drop(columns='compatibility', inplace=True)
 # create the tensor dataset for the training set (which contains the CLS embedding)
 print('Creating the tensor dataset for the training set...')
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
-# augment the training set with all the permutations of the outfits
-print('Augmenting the training set with all the permutations of the outfits...')
-training_set = create_permutations_per_outfit(training_set)
-# scale the training set using z-score (layer normalization + batch normalization)
 print('Scaling the training set using z-score...')
 CLS_layer_train = training_set[0, :, :]  # CLS is the first element of the tensor, preserve it
 training_set = training_set[1:, :, :]  # remove CLS from the tensor
@@ -53,6 +49,10 @@ torch.save(mean, '../reduced_data/mean.pth')
 torch.save(std, '../reduced_data/std.pth')
 training_set = (training_set - mean) / std
 training_set = torch.cat((CLS_layer_train.unsqueeze(0), training_set), dim=0)  # concatenate CLS to the scaled tensor
+# augment the training set with all the permutations of the outfits
+print('Augmenting the training set with all the permutations of the outfits...')
+training_set = create_permutations_per_outfit(training_set)
+# scale the training set using z-score (layer normalization + batch normalization)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 # repeat each row of the train dataframe 24 times (all the permutations of the outfit)
@@ -80,15 +80,15 @@ valid_dataframe.drop(columns='compatibility', inplace=True)
 # create the tensor dataset for the validation set (which contains the CLS embedding)
 print('Creating the tensor dataset for the validation set...')
 validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, embeddings, IDs, CLS)
-# augment the validation set with all the permutations of the outfits
-print('Augmenting the validation set with all the permutations of the outfits...')
-validation_set = create_permutations_per_outfit(validation_set)
-# scale the validation set using z-score (layer normalization) (using the mean and std of the training set)
 print('Scaling the validation set using z-score...')
 CLS_layer_val = validation_set[0, :, :]  # CLS is the first element of the tensor, preserve it
 validation_set = validation_set[1:, :, :]  # remove CLS from the tensor
 validation_set = (validation_set - mean) / std
 validation_set = torch.cat((CLS_layer_val.unsqueeze(0), validation_set), dim=0)  # concatenate CLS to the scaled tensor
+# augment the validation set with all the permutations of the outfits
+print('Augmenting the validation set with all the permutations of the outfits...')
+validation_set = create_permutations_per_outfit(validation_set)
+# scale the validation set using z-score (layer normalization) (using the mean and std of the training set)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 # repeat each row of the valid dataframe 24 times (all the permutations of the outfit)
@@ -115,7 +115,7 @@ dataloaders = {'train': trainloader, 'val': validloader}
 masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=3, num_heads=1,
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=1,
                dropout=0.2, dim_feedforward=None)
 
 # use Adam as optimizer as suggested in the paper
@@ -125,15 +125,6 @@ criterion_BC = CrossEntropyLoss()
 criteria = {'BC': criterion_BC, 'MLM': criterion_MLM}
 
 print('Start pre-training the model')
-trainer = umBERT_trainer(model=model, optimizer=adam, criterion=criteria, device=device, n_epochs=50)
+trainer = umBERT_trainer(model=model, optimizer=adam, criterion=criteria, device=device, n_epochs=20)
 trainer.pre_train_BERT_like(dataloaders=dataloaders)
 print('Pre-training completed')
-
-# save a checkpoint dictionary containing the model state_dict
-checkpoint = {'d_model': model.d_model, 'catalogue_size': model.catalogue_size, 'num_encoders': model.num_encodes,
-              'num_heads': model.num_heads, 'dropout': model.dropout, 'dim_feedforward': model.dim_feedforward,
-              'model_state_dict': model.state_dict()}
-# save the model into a checkpoint file
-torch.save(checkpoint, '../models/umBERT_pretrained_jointly.pth')
-
-# TODO save the checkpoints containing the model architecture

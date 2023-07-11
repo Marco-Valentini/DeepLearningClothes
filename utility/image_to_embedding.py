@@ -2,9 +2,10 @@
 import numpy as np
 import torch
 from utility.identity import Identity
+from utility.resnet18_modified import Resnet18Modified
 
 
-def image_to_embedding(dataloader, model, device):
+def image_to_embedding(dataloader, model: Resnet18Modified, device):
     """
     given a dataloader, a model and a device, return the embeddings of the dataset and the labels
     :param dataloader: the dataloader of the dataset
@@ -14,7 +15,7 @@ def image_to_embedding(dataloader, model, device):
     """
     # get the embeddings
     embeddings = []  # list to store the embeddings
-    model.fc = Identity()  # replace the last fully connected layer with an identity layer
+    model.fc2 = Identity()  # replace the last fully connected layer with an identity layer
     with torch.no_grad():  # do not calculate the gradients
         for inputs, labels in dataloader:  # iterate over the data
             inputs = inputs.to(device)  # move the input images to the device
