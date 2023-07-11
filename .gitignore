@@ -171,3 +171,5 @@ vcs.xml
 /dataset_catalogue/
 /reduced_data/embeddings_512.npy
 /reduced_data/IDs_list
+/models/umBERT_pretrained_BC.pth
+/models/umBERT_pretrained_MLM.pth

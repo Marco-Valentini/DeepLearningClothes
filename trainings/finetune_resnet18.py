@@ -1,5 +1,8 @@
 import os
+
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
@@ -8,10 +11,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.transforms import transforms
 
+from utility.resnet18_modified import Resnet18Modified
+
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
+device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")  # use the mps device if available
 
 # This code expects data to be in same format as Imagenet.
 # Thus, the dataset has three folds, named 'train', 'val' and 'test'.
@@ -85,12 +90,13 @@ data_transforms = {
 data_dir = '../dataset_cnn_fine_tuning'
 train_dir = data_dir + '/train'
 val_dir = data_dir + '/val'
+test_dir = data_dir + '/test'
 
 # Create the ImageFolder datasets for training and validation
 image_datasets = {
     'train': ImageFolder(train_dir, transform=data_transforms['train']),
     'val': ImageFolder(val_dir, transform=data_transforms['val']),
-    'test': ImageFolder(val_dir, transform=data_transforms['test'])
+    'test': ImageFolder(test_dir, transform=data_transforms['test'])
 }
 
 # Create data loaders for training and validation
@@ -99,10 +105,6 @@ dataloaders = {
     'val': DataLoader(image_datasets['val'], batch_size=32, shuffle=False, num_workers=0),
     'test': DataLoader(image_datasets['test'], batch_size=32, shuffle=False, num_workers=0)
 }
-
-# Load the pre-trained ResNet18 model and modify the last fully connected layer
-weights = ResNet18_Weights.IMAGENET1K_V1  # use the weights trained on ImageNet
-model = resnet18(weights=weights)  # load the model
 
 
 # freeze the given number of layers of the given model
@@ -123,32 +125,18 @@ def freeze(model, n=None):
                 param.requires_grad = False
             count += 1
 
-
-# Define the loss function and optimizer to be used
-criterion = nn.CrossEntropyLoss()  # loss function (categorical cross-entropy)
-optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer (stochastic gradient descent)
-num_epochs = 20  # number of epochs to train the model
-num_classes = 4  # number of classes in the dataset (4 in our case)
-
-
 # fine-tune the model
-def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_classes, device, num_epochs=20):
+def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, num_epochs=20):
     """
     This function fine-tunes the given model using the given optimizer and loss function for the given number of epochs.
     :param model: the model to be fine-tuned
     :param optimizer: the optimizer to be used
     :param criterion: the loss function to be used
     :param dataloaders: the data loaders to be used
-    :param num_classes: the number of classes in the dataset
     :param device: the device to be used
     :param num_epochs: the number of epochs to train the model
     :return: the fine-tuned model
     """
-    # Get the number of input features for the last fully connected layer
-    num_features = model.fc.in_features
-
-    # Modify the last fully connected layer to have the desired number of classes
-    model.fc = torch.nn.Linear(num_features, num_classes)
 
     # freeze parameters of the pre-trained model
     # To freeze a specific number of layers, pass the number as the second argument
@@ -156,6 +144,12 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_class
 
     model = model.to(device)  # move the model to the device
 
+    train_loss = []  # keep track of the loss of the training phase
+    val_loss = []  # keep track of the loss of the validation phase
+    train_acc = []  # keep track of the accuracy of the training phase
+    val_acc = []  # keep track of the accuracy of the validation phase
+    valid_loss_min = np.Inf  # track change in validation loss
+    best_model = model  # keep track of the best model
     for epoch in range(num_epochs):
         for phase in ['train', 'val']:  # train and validate the model
             print(f'Epoch: {epoch + 1}/{num_epochs} | Phase: {phase}')
@@ -191,7 +185,32 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, num_class
             # compute  precision, recall and F1 score
             precision, recall, f1_score, _ = precision_recall_fscore_support(labels.data.cpu().numpy(), preds.cpu().numpy(), average='macro')
             print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
-    return model
+
+            if phase == 'train':
+                train_loss.append(epoch_loss)
+                train_acc.append(epoch_acc.item())
+            else:
+                val_loss.append(epoch_loss)
+                val_acc.append(epoch_acc.item())
+                if epoch_loss <= valid_loss_min:
+                    print(f'Validation loss decreased ({valid_loss_min:.6f} --> {epoch_loss:.6f}).  Saving model ...')
+                    print(f'saving model with validation accuracy {epoch_acc}')
+                    checkpoint = {'state_dict': model.state_dict(),
+                                  'dim_embeddings': model.dim_embeddings}
+                    torch.save(checkpoint, f'finetuned_fashion_resnet18_{model.dim_embeddings}.pth')
+                    valid_loss_min = epoch_loss
+                    best_model = model
+    plt.plot(train_loss, label='train')
+    plt.plot(val_loss, label='val')
+    plt.legend()
+    plt.title('Loss in fine-tuning')
+    plt.show()
+    plt.plot(train_acc, label='train')
+    plt.plot(val_acc, label='val')
+    plt.legend()
+    plt.title('Accuracy in fine-tuning')
+    plt.show()
+    return best_model
 
 
 # test the model
@@ -199,10 +218,11 @@ def test_model(model, dataloader, device):
     """
     This function tests the given model using the given data loaders.
     :param model: the model to be tested
-    :param dataloaders: the data loaders to be used
+    :param dataloader: the data loaders to be used
     :param device: the device to be used
     :return: None
     """
+    model = model.to(device)  # move the model to the device
     model.eval()  # set model to evaluate mode
     with torch.no_grad():  # disable gradient calculation
         correct = 0
@@ -221,11 +241,24 @@ def test_model(model, dataloader, device):
         print(f'Accuracy: {correct / total}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
 
 
+num_classes = 4  # number of classes in the dataset (4 in our case)
+dim_embeddings = 256  # dimension of the embeddings to be learned
+
+# Load the pre-trained ResNet18 model and modify the last fully connected layer
+weights = ResNet18_Weights.IMAGENET1K_V1  # use the weights trained on ImageNet
+model = resnet18(weights=weights)  # load the model
+
+# modify the model architecture to output embeddings of the given dimension
+# and classify the embeddings into the given number of classes
+model = Resnet18Modified(model, dim_embeddings, num_classes)
+
+# Define the loss function and optimizer to be used
+criterion = nn.CrossEntropyLoss()  # loss function (categorical cross-entropy)
+optimizer = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9)  # optimizer (stochastic gradient descent)
+num_epochs = 20  # number of epochs to train the model
+
 # fine-tune the model
-model = fine_tune_model(model, freeze, optimizer, criterion, dataloaders, num_classes, device, num_epochs)
+model = fine_tune_model(model, freeze, optimizer, criterion, dataloaders, device, num_epochs)
 
 # test the model
 test_model(model, dataloaders['test'], device)
-
-# save the model
-torch.save(model.state_dict(), '../models/finetuned_fashion_resnet18.pth')

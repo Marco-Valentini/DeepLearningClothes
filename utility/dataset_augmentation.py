@@ -21,12 +21,6 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
     :return: if batch_first=False:the outfit with a masked item (a tensor of shape (5, n_outfits*sequence_length, emb_size) if with_CLS=True, (4, n_outfits, emb_size) otherwise),
     otherwise: the outfit with a masked item (a tensor of shape (n_outfits*sequence_length, 5, emb_size) if with_CLS=True, (n_outfits, 4, emb_size) otherwise),
     """
-    if outfit.device == 'cpu':
-        outfit = outfit.to(device)
-    print(f"the outfit is on the {outfit.device}")
-    if MASK.device == 'cpu':
-        MASK = MASK.to(device)
-    print(f"the MASK is on the {MASK.device}")
     if input_contains_CLS:
         CLS = outfit[0, :, :].to(device)  # CLS is the first element of the tensor, extract it
         outfit = outfit[1:, :, :]  # remove CLS from the tensor
@@ -46,7 +40,7 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
             masked_indexes.append(masked_idx)
             label = list(catalogue['ID'].values).index(outfit_labels[masked_idx])  # label is the position of the masked item in the catalogue
             labels.append(label)  # save the label of the masked item
-            masked_outfit[masked_idx, i * sequence_length + masked_idx, :] = MASK  # mask the item
+            masked_outfit[masked_idx, i * sequence_length + masked_idx, :] = torch.from_numpy(MASK)  # mask the item
 
     if input_contains_CLS:
         # make CLS a tensor of the same shape of the masked_outfit_train tensor

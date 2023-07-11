@@ -22,9 +22,9 @@ class umBERT(nn.Module):
         super(umBERT, self).__init__()
         if dim_feedforward is None:
             dim_feedforward = d_model * 4  # according to the paper
-        self.d_model = d_model  # the dimension of the embeddings
         self.num_encoders = num_encoders  # the number of encoders in the encoder stack
         self.num_heads = num_heads  # the number of heads in the multi-head attention
+        self.d_model = d_model  # the dimension of the embeddings
         self.catalogue_size = catalogue_size  # number of items in the catalogue
         self.dim_feedforward = dim_feedforward
         self.catalogue_size = catalogue_size  # number of items in the catalogue
@@ -55,7 +55,7 @@ class umBERT(nn.Module):
         :param test_outfit: the outfit embedding
         :return: the probability distribution over the catalogue
         """
-        return torch.max(self.softmax(self.ffnn(self.forward(test_outfit))),dim=1).indices  # TODO fix after fine tuning
+        return torch.max(self.softmax(self.ffnn(self.forward(test_outfit))), dim=1).indices
 
 
     def predict_BC(self, test_set):

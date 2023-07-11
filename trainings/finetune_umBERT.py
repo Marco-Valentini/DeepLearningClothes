@@ -54,13 +54,16 @@ print("Embeddings loaded")
 
 # import the training set
 train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train.csv')
+# remove all the outfits with compatibility = 0 (we are interested only in the compatible outfits)
+train_dataframe = train_dataframe[train_dataframe['compatibility'] == 1]
 train_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the training set")
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
 
-# remove the CLS
-training_set = training_set[:, 1:, :]
+# remove the CLS layer from the training set
+CLS_layer = training_set[0, :, :].unsqueeze(0)
+training_set = training_set[1:, :, :]
 # scale the training set using z-score (layer normalization + batch normalization)
 print('Scaling the training set using z-score...')
 mean = training_set.mean(dim=0).mean(dim=0)
@@ -68,49 +71,62 @@ std = training_set.std(dim=0).std(dim=0)
 torch.save(mean, '../reduced_data/mean_fine_tuning.pth')
 torch.save(std, '../reduced_data/std_fine_tuning.pth')
 training_set = (training_set - mean) / std
-# reattach the CLS
-training_set = torch.cat((CLS, training_set), dim=1)
+# reattach the CLS layer
+training_set = torch.cat((CLS_layer, training_set), dim=0)
 
 # augment the training set with all the permutations of the outfits
 print('Augmenting the training set with all the permutations of the outfits...')
 training_set = create_permutations_per_outfit(training_set, with_CLS=False)  # to remove CLS embeddings
-
-
-
+print('making the training set for fill in the blank fine tuning...')
 train_dataframe = pd.DataFrame(np.repeat(train_dataframe.values, 24, axis=0), columns=train_dataframe.columns)
 
-masked_outfit_train, masked_indexes_train, labels_train = mask_one_item_per_time(training_set, train_dataframe, MASK,
-                                                                                 with_CLS=False,device=device)
+training_set, masked_indexes_train, labels_train = mask_one_item_per_time(training_set,
+                                                                                 train_dataframe,
+                                                                                 MASK,
+                                                                                 input_contains_CLS=False,
+                                                                                 device=device,
+                                                                                 output_in_batch_first=True)
 
-train_labels = torch.Tensor(labels_train).reshape(len(labels_train), 1)
-masked_positions_tensor_train = torch.Tensor(masked_indexes_train).reshape(len(masked_indexes_train), 1)
-train_labels = torch.concat((train_labels, masked_positions_tensor_train), dim=1)
-training_dataset = torch.utils.data.TensorDataset(training_set, train_labels)
+labels_train_tensor = torch.Tensor(labels_train).unsqueeze(1)
+masked_positions_tensor_train = torch.Tensor(masked_indexes_train).unsqueeze(1)
+labels_train_tensor = torch.concat((labels_train_tensor, masked_positions_tensor_train), dim=1)
+training_dataset = torch.utils.data.TensorDataset(training_set, labels_train_tensor)
 trainloader = DataLoader(training_dataset, batch_size=8, num_workers=0, shuffle=True)
 print("Training set for fill in the blank fine tuning created")
 
 # create validation sets and dataloaders
 # import the validation set
 valid_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_valid.csv')
+# remove all the outfits with compatibility = 0 (we are interested only in the compatible outfits)
+valid_dataframe = valid_dataframe[valid_dataframe['compatibility'] == 1]
 valid_dataframe.drop(columns='compatibility', inplace=True)
 
 print("Creating the validation set")
 validation_set = create_tensor_dataset_for_BC_from_dataframe(valid_dataframe, embeddings, IDs, CLS)
+print('Scaling the validation set using z-score...')
+# remove the CLS layer from the validation set
+CLS_layer = validation_set[0, :, :].unsqueeze(0)
+validation_set = validation_set[1:, :, :]
+validation_set = (validation_set - mean) / std
+# reattach the CLS layer
+validation_set = torch.cat((CLS_layer, validation_set), dim=0)
 # augment the validation set with all the permutations of the outfits
 print('Augmenting the validation set with all the permutations of the outfits...')
 validation_set = create_permutations_per_outfit(validation_set, with_CLS=False)  # to remove CLS embeddings
 # scale the validation set using z-score (layer+batch normalization) (using the mean and std of the training set)
-print('Scaling the validation set using z-score...')
-validation_set = (validation_set - mean) / std
 # repeat each row of the train dataframe 24 times (all the permutations of the outfit)
 valid_dataframe = pd.DataFrame(np.repeat(valid_dataframe.values, 24, axis=0), columns=train_dataframe.columns)
 # mask one item per time
-masked_outfit_val, masked_indexes_val, labels_val = mask_one_item_per_time(validation_set, valid_dataframe, MASK,
-                                                                           with_CLS=False,device=device)
+validation_set, masked_indexes_val, labels_val = mask_one_item_per_time(validation_set,
+                                                                           valid_dataframe,
+                                                                           MASK,
+                                                                           input_contains_CLS=False,
+                                                                           device=device,
+                                                                           output_in_batch_first=True)
 # create the validation set for the fill in the blank task
-valid_labels = torch.Tensor(labels_val).reshape(len(labels_val), 1)
-masked_positions_tensor_valid = torch.Tensor(masked_indexes_val).reshape(len(masked_indexes_val), 1)
-valid_labels = torch.concat((valid_labels, masked_positions_tensor_valid), dim=1)
+labels_val_tensor = torch.Tensor(labels_val).unsqueeze(1)
+masked_positions_tensor_valid = torch.Tensor(masked_indexes_val).unsqueeze(1)
+valid_labels = torch.concat((labels_val_tensor, masked_positions_tensor_valid), dim=1)
 validation_dataset_MLM = torch.utils.data.TensorDataset(validation_set, valid_labels)
 validloader = DataLoader(validation_dataset_MLM, batch_size=8, num_workers=0, shuffle=True)
 print("Validation set for fill in the blank fine tuning created")
@@ -119,11 +135,13 @@ print("Validation set for fill in the blank fine tuning created")
 dataloaders = {'train': trainloader, 'val': validloader}
 
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=8,
-               dropout=0.1,
-               dim_feedforward=None)
+checkpoint = torch.load('../models/umBERT_pretrained_BERT_like.pth')
+
+model = umBERT(catalogue_size=checkpoint['catalogue_size'], d_model=checkpoint['d_model'],
+               num_encoders=checkpoint['num_encoders'], num_heads=checkpoint['num_heads'],
+               dropout=checkpoint['dropout'], dim_feedforward=checkpoint['dim_feedforward'])
 # load the model weights
-model.load_state_dict(torch.load('../models/umBERT.pth'))
+model.load_state_dict(checkpoint['model_state_dict'])
 
 # define the optimizer
 optimizer = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999),
@@ -137,8 +155,5 @@ print('Start fine tuning...')
 trainer = umBERT_trainer(model, optimizer, criterion, device, n_epochs=10)
 trainer.fine_tuning(dataloaders)
 print('Fine tuning completed!')
-
-# save the results
-model.save('../models/umBERT_finetuned.pth')
 
 # test the model then in the main on the test set
