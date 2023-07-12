@@ -87,8 +87,8 @@ class umBERT_trainer():
 
                     self.optimizer.zero_grad()  # zero the gradients
 
-                    with torch.set_grad_enabled(
-                            phase == 'train'):  # set the gradient computation only if in training phase
+                    # set the gradient computation only if in training phase
+                    with torch.set_grad_enabled(phase == 'train'):
                         # compute the output of the model (forward pass) [batch_size, seq_len, d_model]
                         output = self.model.forward(inputs)
 

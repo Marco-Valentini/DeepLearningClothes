@@ -1,4 +1,6 @@
 import json
+import random
+
 from BERT_architecture.umBERT import umBERT
 import pandas as pd
 import torch
@@ -11,7 +13,17 @@ from utility.dataset_augmentation import create_permutations_per_outfit
 import numpy as np
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from utility.umBERT_trainer import umBERT_trainer
-from constants import MASK, CLS  # import the MASK and CLS tokens
+from constants import get_special_embeddings
+
+# set the seed for reproducibility
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+torch.use_deterministic_algorithms(True)
+
+# import the MASK and CLS tokens
+dim_embeddings = 512
+CLS, MASK = get_special_embeddings(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -40,6 +52,7 @@ train_dataframe.drop(columns='compatibility', inplace=True)
 # create the tensor dataset for the training set (which contains the CLS embedding)
 print('Creating the tensor dataset for the training set...')
 training_set = create_tensor_dataset_for_BC_from_dataframe(train_dataframe, embeddings, IDs, CLS)
+# scale the training set using z-score (layer normalization + batch normalization)
 print('Scaling the training set using z-score...')
 CLS_layer_train = training_set[0, :, :]  # CLS is the first element of the tensor, preserve it
 training_set = training_set[1:, :, :]  # remove CLS from the tensor
@@ -52,7 +65,6 @@ training_set = torch.cat((CLS_layer_train.unsqueeze(0), training_set), dim=0)  #
 # augment the training set with all the permutations of the outfits
 print('Augmenting the training set with all the permutations of the outfits...')
 training_set = create_permutations_per_outfit(training_set)
-# scale the training set using z-score (layer normalization + batch normalization)
 # mask the input (using the MASK embedding)
 print('Masking the input...')
 # repeat each row of the train dataframe 24 times (all the permutations of the outfit)

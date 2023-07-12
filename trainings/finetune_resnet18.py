@@ -1,4 +1,5 @@
 import os
+import random
 
 import numpy as np
 import torch
@@ -12,6 +13,12 @@ import torch.optim as optim
 from torchvision.transforms import transforms
 
 from utility.resnet18_modified import Resnet18Modified
+
+# set the seed for reproducibility
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+torch.use_deterministic_algorithms(True)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

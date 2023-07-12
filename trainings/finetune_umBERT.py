@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import os
@@ -10,7 +12,17 @@ from utility.dataset_augmentation import create_permutations_per_outfit, mask_on
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from utility.umBERT_trainer import umBERT_trainer
-from constants import MASK, CLS  # import the MASK and CLS tokens
+from constants import get_special_embeddings
+
+# set the seed for reproducibility
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
+torch.use_deterministic_algorithms(True)
+
+# import the MASK and CLS tokens
+dim_embeddings = 512
+CLS, MASK = get_special_embeddings(dim_embeddings)
 
 
 def freeze(model, n=None):
