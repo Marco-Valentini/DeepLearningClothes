@@ -431,7 +431,7 @@ class umBERT_trainer():
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
                         torch.save(checkpoint,
-                                   '../models/umBERT_fine_tuned.pth')
+                                   '../models/umBERT_fine_tuned_BERT_like.pth')
                         valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train loss for fine tuning')
         plt.plot(val_loss, label='val loss for fine tuning')

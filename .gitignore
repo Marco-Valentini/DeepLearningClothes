@@ -173,3 +173,8 @@ vcs.xml
 /reduced_data/IDs_list
 /models/umBERT_pretrained_BC.pth
 /models/umBERT_pretrained_MLM.pth
+/models/
+/dataset_catalogue_accessories/
+/dataset_catalogue_bottoms/
+/dataset_catalogue_shoes/
+/dataset_catalogue_tops/

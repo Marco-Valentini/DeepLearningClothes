@@ -27,7 +27,6 @@ class umBERT(nn.Module):
         self.d_model = d_model  # the dimension of the embeddings
         self.catalogue_size = catalogue_size  # number of items in the catalogue
         self.dim_feedforward = dim_feedforward
-        self.catalogue_size = catalogue_size  # number of items in the catalogue
         self.dropout = dropout  # dropout probability
         self.encoder_stack = nn.TransformerEncoder(nn.TransformerEncoderLayer(
             d_model=d_model,
