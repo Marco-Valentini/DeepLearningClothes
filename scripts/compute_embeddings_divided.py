@@ -41,22 +41,23 @@ data_transform = transforms.Compose([  # define the transformations to be applie
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
 ])
 
-data_dir = '../dataset_catalogue'  # define the directory of the dataset
-image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
+for category in ['shoes','tops','bottoms','accessories']:
+    data_dir = f'../dataset_catalogue_{category}'  # define the directory of the dataset
+    image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
+    dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=True, num_workers=0)  # create the dataloader
+    print("Dataset loaded")
 
-dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=True, num_workers=0)  # create the dataloader
-print("Dataset loaded")
+    print("Computing the embeddings of the dataset")
+    # get the embeddings of the dataset, the labels and the ids
+    embeddings, labels, IDs = image_to_embedding(dataloaders, fashion_resnet18, device)
+    print("Embeddings computed")
 
-print("Computing the embeddings of the dataset")
-# get the embeddings of the dataset, the labels and the ids
-embeddings, labels, IDs = image_to_embedding(dataloaders, fashion_resnet18, device)
-print("Embeddings computed")
+    print("Saving the embeddings IDs")
+    with open(f"../reduced_data/{category}_IDs_list", "w") as fp:
+        json.dump(IDs, fp)
+    print(f"IDs of the {category} saved")
 
-print("Saving the embeddings IDs")
-with open("../reduced_data/IDs_list", "w") as fp:
-    json.dump(IDs, fp)
-print("IDs saved")
+    with open(f'../reduced_data/{category}_embeddings_{dim_embeddings}.npy', 'wb') as f:
+        np.save(f, embeddings)
+    print(f"Embeddings of {category} saved")
 
-with open(f'../reduced_data/embeddings_{dim_embeddings}.npy', 'wb') as f:
-    np.save(f, embeddings)
-print("Embeddings saved")

@@ -197,7 +197,7 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, n
                     print(f'saving model with validation accuracy {epoch_acc}')
                     checkpoint = {'state_dict': model.state_dict(),
                                   'dim_embeddings': model.dim_embeddings}
-                    torch.save(checkpoint, f'finetuned_fashion_resnet18_{model.dim_embeddings}.pth')
+                    torch.save(checkpoint, f'../models/finetuned_fashion_resnet18_{model.dim_embeddings}.pth')
                     valid_loss_min = epoch_loss
                     best_model = model
     plt.plot(train_loss, label='train')
@@ -242,7 +242,7 @@ def test_model(model, dataloader, device):
 
 
 num_classes = 4  # number of classes in the dataset (4 in our case)
-dim_embeddings = 256  # dimension of the embeddings to be learned
+dim_embeddings = 32  # dimension of the embeddings to be learned
 
 # Load the pre-trained ResNet18 model and modify the last fully connected layer
 weights = ResNet18_Weights.IMAGENET1K_V1  # use the weights trained on ImageNet

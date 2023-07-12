@@ -131,10 +131,11 @@ catalogue_shoes_reduced = remove_unused_items_from_catalogue(catalogue_shoes, me
 catalogue_shoes_reduced = catalogue_shoes_reduced.reset_index(drop=True)
 catalogue_tops_reduced = remove_unused_items_from_catalogue(catalogue_tops, merged_dataframe['item_2'].values)
 catalogue_tops_reduced = catalogue_tops_reduced.reset_index(drop=True)
-catalogue_bottoms_reduced = remove_unused_items_from_catalogue(catalogue_bottoms, merged_dataframe['item_4'].values)
-catalogue_bottoms_reduced = catalogue_bottoms_reduced.reset_index(drop=True)
 catalogue_accessories_reduced = remove_unused_items_from_catalogue(catalogue_accessories, merged_dataframe['item_3'].values)
 catalogue_accessories_reduced = catalogue_accessories_reduced.reset_index(drop=True)
+catalogue_bottoms_reduced = remove_unused_items_from_catalogue(catalogue_bottoms, merged_dataframe['item_4'].values)
+catalogue_bottoms_reduced = catalogue_bottoms_reduced.reset_index(drop=True)
+
 
 print("Catalogues sizes have been reduced")
 
