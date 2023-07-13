@@ -1,12 +1,19 @@
+from hyperopt import Trials
+from hyperopt import hp
+from hyperopt import fmin
+from hyperopt import tpe
+from hyperopt import STATUS_OK
 from torch.nn import CrossEntropyLoss
 import random
 from BERT_architecture.umBERT2 import umBERT2
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-import torch.nn as nn
-from torch.optim import Adam
+from lion_pytorch import Lion
+from torch.optim import Adam, AdamW
 import os
+
+from scripts.bayesian_optimization import objective_umBERT2
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 import numpy as np
 from utility.get_category_labels import get_category_labels
@@ -34,7 +41,6 @@ print('Device used: ', device)
 
 # load the catalogue for each category (shoes, tops, accessories, bottoms)
 catalogues = {}
-
 for category in ['shoes', 'tops', 'accessories', 'bottoms']:
     catalogues[category] = pd.read_csv(f'../reduced_data/reduced_catalogue_{category}.csv')
     print(f'Catalogue {category} loaded')
@@ -127,15 +133,64 @@ validationloader = DataLoader(validation_set, batch_size=32, shuffle=True, num_w
 # create the dictionary containing the dataloaders for the training and validation set
 dataloaders = {'train': trainloader, 'val': validationloader}
 
-# define the umBERT2 model
-model = umBERT2(catalogue_sizes=catalogue_sizes, d_model=dim_embeddings, num_encoders=6, num_heads=1, dropout=0.2)
+### hyperparameters tuning ###
+print('Starting hyperparameters tuning...')
+# define the maximum number of evaluations
+max_evals = 10
+# define the search space
+space = {
+    'lr': hp.uniform('lr', 1e-5, 1e-2),
+    'batch_size': hp.choice('batch_size', [16, 32, 64]),
+    'n_epochs': hp.choice('n_epochs', [20, 50, 100]),
+    'dropout': hp.uniform('dropout', 0, 0.5),
+#    'd_model': hp.choice('d_model', [32, 64, 128, 256]),
+    'num_encoders': hp.choice('num_encoders', [i for i in range(1, 12)]),
+    'num_heads': hp.choice('num_heads', [1, 2, 4, 8]),
+    'weight_decay': hp.uniform('weight_decay', 0, 0.1),
+    'optimizer': hp.choice('optimizer', [Adam, AdamW, Lion])
+}
 
-# use Adam as optimizer as suggested in the paper
-adam = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
-criterion = CrossEntropyLoss()
+# define the algorithm
+tpe_algorithm = tpe.suggest
 
-print('Start pre-training the model')
-trainer = umBERT2_trainer(model=model, optimizer=adam, criterion=criterion, device=device, n_epochs=100)
-trainer.pre_train(dataloaders=dataloaders)
-print('Pre-training completed')
+# define the trials object
+baeyes_trials = Trials()
+
+# define the objective function
+def objective(params):
+    # define the model
+    model = umBERT2(catalogue_sizes=catalogue_sizes, d_model=dim_embeddings, num_encoders=params['num_encoders'],
+                    num_heads=params['num_heads'], dropout=params['dropout'])
+    # define the optimizer
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+
+    # define the criteria
+    criterion = CrossEntropyLoss()
+    # define the trainer
+    trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion, device=device, n_epochs=params['n_epochs'])
+    # train the model
+    acc_CLF, acc_MLM = trainer.pre_train(dataloaders=dataloaders)
+
+    loss = 2 - (acc_CLF + acc_MLM)  # minimize the loss
+
+    # return the loss and the accuracy
+    return {'loss': loss, 'params': params, 'status': STATUS_OK}
+
+# optimize
+best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
+
+# optimal model
+print(best)
+
+# # define the umBERT2 model
+# model = umBERT2(catalogue_sizes=catalogue_sizes, d_model=dim_embeddings, num_encoders=6, num_heads=1, dropout=0.3)
+#
+# # use Adam as optimizer as suggested in the paper
+# adam = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.02, eps=1e-08)
+# criterion = CrossEntropyLoss()
+#
+# print('Start pre-training the model')
+# trainer = umBERT2_trainer(model=model, optimizer=adam, criterion=criterion, device=device, n_epochs=500)
+# trainer.pre_train(dataloaders=dataloaders)
+# print('Pre-training completed')
 

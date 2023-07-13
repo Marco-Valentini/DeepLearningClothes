@@ -38,6 +38,8 @@ class umBERT2_trainer():
         val_acc_MLM = []  # keep track of the accuracy of the validation phase on the MLM classification task
 
         valid_loss_min = np.Inf  # track change in validation loss
+        best_valid_acc_CLF = 0  # track change in validation accuracy CLF
+        best_valid_acc_MLM = 0  # track change in validation accuracy MLM
         self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
@@ -98,8 +100,6 @@ class umBERT2_trainer():
                     pred_labels_acc = torch.max((self.model.softmax(dict_outputs['accessories'], dim=1)), dim=1).indices
                     pred_labels_bottoms = torch.max((self.model.softmax(dict_outputs['bottoms'], dim=1)), dim=1).indices
 
-
-
                     # update the accuracy of the classification task
                     accuracy_CLF += torch.sum(pred_labels_CLF == labels_CLF)
                     # update the accuracy of the MLM task
@@ -151,6 +151,8 @@ class umBERT2_trainer():
                         torch.save(checkpoint,
                                    '../models/umBERT_pretrained_BERT2.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
+                        best_valid_acc_CLF = epoch_accuracy_CLF
+                        best_valid_acc_MLM = epoch_accuracy_MLM
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
@@ -166,6 +168,7 @@ class umBERT2_trainer():
         plt.legend()
         plt.title('Accuracy (MLM) training')
         plt.show()
+        return best_valid_acc_CLF, best_valid_acc_MLM
 
     def compute_loss(self, dict_outputs, dict_labels):
         loss = 0

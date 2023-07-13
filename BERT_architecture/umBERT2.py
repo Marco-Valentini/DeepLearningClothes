@@ -10,10 +10,10 @@ class umBERT2(nn.Module):
     so it keeps track of the catalogue size of each category in the outfit and uses this information to train 4 different
     ffnn (one for each category) to predict not only the masked item (MLM task) but also the non-masked ones (reconstruction task).
     """
-    def __init__(self, catalogue_sizes, d_model=512, num_encoders=6, num_heads=1, dropout=0, dim_feedforward=None):
+    def __init__(self, catalogue_sizes: dict, d_model=512, num_encoders=6, num_heads=1, dropout=0, dim_feedforward=None):
         """
         the constructor of the class umBERT2
-        :param catalogue_sizes: the number of items in each catalogue (the number of classes)
+        :param catalogue_sizes: a dict with the number of items in each catalogue (the number of classes)
         :param d_model: the dimension of the embeddings
         :param num_encoders: the number of encoders in the encoder stack
         :param num_heads: the number of heads in the multi-head attention
