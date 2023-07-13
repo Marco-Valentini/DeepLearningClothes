@@ -148,8 +148,7 @@ class umBERT2_trainer():
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-                        torch.save(checkpoint,
-                                   '../models/umBERT_pretrained_BERT2.pth')  # save the checkpoint dictionary to a file
+                        torch.save(checkpoint, '../models/umBERT_pretrained_BERT2.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_CLF = epoch_accuracy_CLF
                         best_valid_acc_MLM = epoch_accuracy_MLM
@@ -171,7 +170,13 @@ class umBERT2_trainer():
         return best_valid_acc_CLF, best_valid_acc_MLM
 
     def compute_loss(self, dict_outputs, dict_labels):
-        loss = 0
-        for key in dict_outputs.keys():
-            loss += self.criterion(dict_outputs[key], dict_labels[key].float())
+        loss_shoes = self.criterion(dict_outputs['shoes'], dict_labels['shoes'])
+        loss_tops = self.criterion(dict_outputs['tops'], dict_labels['tops'])
+        loss_acc = self.criterion(dict_outputs['accessories'], dict_labels['accessories'])
+        loss_bottoms = self.criterion(dict_outputs['bottoms'], dict_labels['bottoms'])
+        if dict_outputs['clf']:
+            loss_clf = self.criterion(dict_outputs['clf'], dict_labels['clf'])
+            loss = loss_shoes + loss_tops + loss_acc + loss_bottoms + loss_clf
+        else:
+            loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
         return loss

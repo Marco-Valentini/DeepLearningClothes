@@ -12,8 +12,6 @@ from torch.utils.data import DataLoader
 from lion_pytorch import Lion
 from torch.optim import Adam, AdamW
 import os
-
-from scripts.bayesian_optimization import objective_umBERT2
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 import numpy as np
 from utility.get_category_labels import get_category_labels
@@ -21,6 +19,11 @@ from utility.masking_input import masking_input
 from utility.umBERT2_trainer import umBERT2_trainer
 import json
 from constants import get_special_embeddings
+import neptune
+from neptune.types import File
+
+run = neptune.init_run(project='<username>/Experiment-Tracking-PyTorch',
+                   api_token=NEPTUNE_API_TOKEN)
 
 # set the seed for reproducibility
 random.seed(42)
@@ -82,8 +85,10 @@ training_set = (training_set - mean) / std
 training_set = torch.cat((CLS_layer_train.unsqueeze(0), training_set), dim=0)  # concatenate CLS to the scaled tensor
 
 # mask the input (using the MASK embedding)
-print('Masking the input...')
-training_set, _, _ = masking_input(training_set, train_dataframe, MASK)
+# print('Masking the input...')
+# training_set, _, _ = masking_input(training_set, train_dataframe, MASK)
+# transpose the tensor to have the batch dimension as the first dimension
+training_set = training_set.transpose(0, 1)
 CLF_train_labels = torch.Tensor(compatibility_train).unsqueeze(1)
 shoes_trainings_labels = torch.Tensor(category_labels_train['shoes']).unsqueeze(1)
 tops_trainings_labels = torch.Tensor(category_labels_train['tops']).unsqueeze(1)
@@ -114,8 +119,10 @@ CLS_layer_validation = validation_set[0, :, :]
 validation_set = validation_set[1:, :, :]
 validation_set = (validation_set - mean) / std
 validation_set = torch.cat((CLS_layer_validation.unsqueeze(0), validation_set), dim=0)
-print('Masking the input...')
-validation_set, _, _ = masking_input(validation_set, validation_dataframe, MASK)
+# print('Masking the input...')
+# validation_set, _, _ = masking_input(validation_set, validation_dataframe, MASK)
+# transpose the tensor to have the batch dimension as the first one
+validation_set = validation_set.transpose(0, 1)
 CLF_validation_labels = torch.Tensor(compatibility_validation).unsqueeze(1)
 shoes_validation_labels = torch.Tensor(category_labels_val['shoes']).unsqueeze(1)
 tops_validation_labels = torch.Tensor(category_labels_val['tops']).unsqueeze(1)
