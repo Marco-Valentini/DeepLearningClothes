@@ -36,12 +36,12 @@ print('Using device:', device)
 
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')  # load the catalogue
 
-# first step: load the embeddings of the dataset obtained by the fine-tuned model finetuned_fashion_resnet18.pth
+# first step: load the embeddings of the dataset obtained by the fine-tuned model finetuned_fashion_resnet18_512.pth
 with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
 
-with open('../reduced_data/embeddings_512.npy', 'rb') as f:
+with open('../reduced_data/embeddings_512_old.npy', 'rb') as f:
     embeddings = np.load(f)
 
 print("Embeddings loaded")

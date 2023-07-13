@@ -3,7 +3,6 @@ from BERT_architecture.umBERT2 import umBERT2
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 class umBERT2_trainer():
     """
     This class is used to train the umBERT2 model on the two tasks (MLM and classification)

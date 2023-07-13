@@ -18,14 +18,14 @@ device = torch.device("mps" if torch.has_mps else "cpu")
 
 catalogue = pd.read_csv('./reduced_data/reduced_catalogue.csv')  # load the catalogue
 
-# first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
+# first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18_512.pth
 
-# load the model finetuned_fashion_resnet18.pth
+# load the model finetuned_fashion_resnet18_512.pth
 model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
 num_ftrs = model.fc.in_features  # get the number of input features for the last fully connected layer
 model.fc = nn.Linear(num_ftrs, 4)  # modify the last fully connected layer to have the desired number of classes
 model.load_state_dict(torch.load(
-    './models/finetuned_fashion_resnet18.pth'))  # load the weights of the model finetuned_fashion_resnet18.pth
+    './models/finetuned_fashion_resnet18_512.pth'))  # load the weights of the model finetuned_fashion_resnet18_512.pth
 model.eval()  # set the model to evaluation mode
 model.to(device)  # set the model to run on the device
 

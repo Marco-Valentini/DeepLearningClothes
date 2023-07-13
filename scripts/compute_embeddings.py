@@ -1,4 +1,4 @@
-# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18.pth
+# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18_512.pth
 import json
 import numpy as np
 import torch
@@ -17,15 +17,15 @@ print("Device used: ", device)
 dim_embeddings = 128
 # load thecheckpoint
 checkpoint = torch.load(f'../models/finetuned_fashion_resnet18_{dim_embeddings}.pth')
-# load the model finetuned_fashion_resnet18.pth
+# load the model finetuned_fashion_resnet18_512.pth
 print(f"Loading the model finetuned_fashion_resnet18_{dim_embeddings}.pth")
 fashion_resnet18 = resnet18()
 fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=checkpoint['dim_embeddings'], num_classes=4)
 
-fashion_resnet18.load_state_dict(checkpoint['state_dict'])  # load the weights of the model finetuned_fashion_resnet18.pth
+fashion_resnet18.load_state_dict(checkpoint['state_dict'])  # load the weights of the model finetuned_fashion_resnet18_512.pth
 fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=dim_embeddings, num_classes=4)
 fashion_resnet18.load_state_dict(torch.load(
-    '../models/finetuned_fashion_resnet18.pth'))  # load the weights of the model finetuned_fashion_resnet18.pth
+    '../models/finetuned_fashion_resnet18_512.pth'))  # load the weights of the model finetuned_fashion_resnet18_512.pth
 fashion_resnet18.eval()  # set the model to evaluation mode
 fashion_resnet18.to(device)  # set the model to run on the device
 
