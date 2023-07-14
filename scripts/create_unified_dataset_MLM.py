@@ -166,12 +166,8 @@ print(f"Number of bottoms in column 4: {count_bottoms}")
 print(f"Number of shoes in column 4: {count_shoes}")
 print(f"Number of accessories in column 4: {count_accessories}")
 
-print("reordering the outfits")
-df = reorder_outfits(df)
-
-print("reordered the outfits")
-
 print("saving the dataframe")
 df.to_csv('../reduced_data/unified_dataset_MLM.csv', index=False)
+# shoes in column 1 tops in column 2 accessories in column 3 bottoms in column 4
 
 
