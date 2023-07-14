@@ -63,6 +63,24 @@ class umBERT2(nn.Module):
                 'tops': recons_embeddings_tops,
                 'accessories': recons_embeddings_acc,
                 'bottoms': recons_embeddings_bottoms}
+    def forward_fine_tune(self, outfit):
+        """
+        This function takes as input an outfit and returns a logit for each item in the outfit.
+        :param outfit: the outfit embeddings
+        :return: a dictionary of logits for each item in the outfit
+        """
+        # compute the logits for each item in the outfit
+        output = self.encoder_stack(outfit)  # compute the output of the encoders stack (forward pass)
+        # compute the logits for each item in the outfit
+        recons_embeddings_shoes = self.ffnn_shoes(output[:, 0, :])  # compute the logits for the first item in the outfit
+        recons_embeddings_tops = self.ffnn_tops(output[:, 1, :])  # compute the logits for the second item in the outfit
+        recons_embeddings_acc = self.ffnn_acc(output[:, 2, :])  # compute the logits for the third item in the outfit
+        recons_embeddings_bottoms = self.ffnn_bottoms(output[:, 3, :])  # compute the logits for the fourth item in the outfit
+
+        return {'shoes': recons_embeddings_shoes,
+                'tops': recons_embeddings_tops,
+                'accessories': recons_embeddings_acc,
+                'bottoms': recons_embeddings_bottoms}
 
     def predict(self, test_outfit):
         """
@@ -86,24 +104,3 @@ class umBERT2(nn.Module):
         pred_labels_acc = torch.max(pred_labels_acc, dim=1).indices  # compute the indices of the predicted items
         pred_labels_bottoms = torch.max(pred_labels_bottoms, dim=1).indices  # compute the indices of the predicted items
         return pred_cls, pred_labels_shoes, pred_labels_tops, pred_labels_acc, pred_labels_bottoms
-
-    def predict_fine_tune(self, test_outfit):
-        """
-        This function takes as input an outfit and returns the probability distribution over the catalogue
-        for each item in the outfit.
-        :param test_outfit: the outfit embedding
-        :return: the probability distributions over each catalogue
-        """
-        # compute the logits for each item in the outfit
-        output = self.forward(test_outfit)  # compute the output of the encoders stack (forward pass)
-        # compute the probability distributions over the catalogues
-        pred_labels_shoes = self.softmax(output['logits_shoes'], dim=1)  # compute the probability distribution over the shoes catalogue
-        pred_labels_tops = self.softmax(output['logits_tops'], dim=1)  # compute the probability distribution over the tops catalogue
-        pred_labels_acc = self.softmax(output['logits_acc'], dim=1)  # compute the probability distribution over the acc catalogue
-        pred_labels_bottoms = self.softmax(output['logits_bottoms'], dim=1)  # compute the probability distribution over the bottoms catalogue
-        # compute the indices of the predicted items
-        pred_labels_shoes = torch.max(pred_labels_shoes, dim=1).indices  # compute the indices of the predicted items
-        pred_labels_tops = torch.max(pred_labels_tops, dim=1).indices  # compute the indices of the predicted items
-        pred_labels_acc = torch.max(pred_labels_acc, dim=1).indices  # compute the indices of the predicted items
-        pred_labels_bottoms = torch.max(pred_labels_bottoms, dim=1).indices  # compute the indices of the predicted items
-        return pred_labels_shoes, pred_labels_tops, pred_labels_acc, pred_labels_bottoms

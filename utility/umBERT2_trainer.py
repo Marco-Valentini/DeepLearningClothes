@@ -212,9 +212,9 @@ class umBERT2_trainer():
         return closest_embeddings
 
 
-    def fine_tuning(self,dataloaders):
+    def fine_tuning(self,dataloaders,run=None):
         # fine-tuning on the fill in the blank task, input 4 tokens and one is masked
-        # the model has to predict the masked token
+        # the model has to predict the masked token # there isn't CLS token in the input
         train_loss = []  # keep track of the loss of the training phase
         val_loss = []  # keep track of the loss of the validation phase
         train_acc_MLM = []  # keep track of the accuracy of the training phase on the MLM classification task
@@ -240,7 +240,7 @@ class umBERT2_trainer():
                 accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
 
                 for inputs, labels in dataloaders[phase]:  # for each batch
-                    # labels has to contain 4 tensors of the 4 items cateogories
+                    # labels has to contain 4 tensors of the 4 items categories, labels are the item IDs
                     inputs = inputs.to(self.device)  # move the data to the device
                     labels_shoes = labels[:, 0].type(torch.LongTensor).to(
                         self.device)  # move the labels_shoes to the device
@@ -250,23 +250,14 @@ class umBERT2_trainer():
                         self.device)  # move the labels_acc to the device
                     labels_bottoms = labels[:, 3].type(torch.LongTensor).to(
                         self.device)  # move the labels_bottoms to the device
+                    # these are the embeddings of the items in the catalogue
+                    dict_inputs = {
+                        'shoes': inputs[:, 0, :],
+                        'tops': inputs[:, 1, :],
+                        'accessories': inputs[:, 2, :],
+                        'bottoms': inputs[:, 3, :]
+                    }
 
-                    # do a one-hot encoding of the labels of the classification task and move them to the device
-                    labels_shoes_one_hot = torch.nn.functional.one_hot(labels_shoes,
-                                                                       num_classes=self.model.catalogue_sizes[
-                                                                           'shoes']).to(self.device)
-                    labels_tops_one_hot = torch.nn.functional.one_hot(labels_tops,
-                                                                      num_classes=self.model.catalogue_sizes[
-                                                                          'tops']).to(self.device)
-                    labels_acc_one_hot = torch.nn.functional.one_hot(labels_acc, num_classes=self.model.catalogue_sizes[
-                        'accessories']).to(self.device)
-                    labels_bottoms_one_hot = torch.nn.functional.one_hot(labels_bottoms,
-                                                                         num_classes=self.model.catalogue_sizes[
-                                                                             'bottoms']).to(self.device)
-
-                    dict_labels = {'shoes': labels_shoes_one_hot,
-                                   'tops': labels_tops_one_hot,
-                                   'accessories': labels_acc_one_hot, 'bottoms': labels_bottoms_one_hot}
                     self.optimizer.zero_grad()  # zero the gradients
 
                     # set the gradient computation only if in training phase
@@ -275,9 +266,8 @@ class umBERT2_trainer():
                         dict_outputs = self.model.forward_fine_tune(inputs) # forward pass computes the
 
                         # compute the total loss (sum of the average values of the two losses)
-                        loss = self.compute_loss(dict_outputs, dict_labels)
+                        loss = self.compute_loss(dict_outputs, dict_inputs)
 
-                        print(loss.type())
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
                             self.optimizer.step()  # update the parameters
@@ -286,10 +276,10 @@ class umBERT2_trainer():
                     running_loss += loss.item() * inputs.size(0)
 
                     # update the accuracy of the classification task
-                    pred_labels_shoes = torch.max((self.model.softmax(dict_outputs['shoes'], dim=1)), dim=1).indices
-                    pred_labels_tops = torch.max((self.model.softmax(dict_outputs['tops'], dim=1)), dim=1).indices
-                    pred_labels_acc = torch.max((self.model.softmax(dict_outputs['accessories'], dim=1)), dim=1).indices
-                    pred_labels_bottoms = torch.max((self.model.softmax(dict_outputs['bottoms'], dim=1)), dim=1).indices
+                    pred_labels_shoes = self.find_closest_embeddings(dict_outputs['shoes'])
+                    pred_labels_tops = self.find_closest_embeddings(dict_outputs['tops'])
+                    pred_labels_acc = self.find_closest_embeddings(dict_outputs['accessories'])
+                    pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms']) # this is an ID list
 
                     # update the accuracy of the MLM task
                     accuracy_shoes += torch.sum(pred_labels_shoes == labels_shoes)
@@ -304,8 +294,15 @@ class umBERT2_trainer():
                 epoch_accuracy_acc = accuracy_acc / len(dataloaders[phase].dataset)
                 epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
                 # compute the average accuracy of the MLM task of the epoch
-                epoch_accuracy_MLM = (
-                                                 epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+                epoch_accuracy_MLM = (epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+
+                if run is not None:
+                    run[f"{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"{phase}/epoch/acc_shoes"].append(epoch_accuracy_shoes)
+                    run[f"{phase}/epoch/acc_tops"].append(epoch_accuracy_tops)
+                    run[f"{phase}/epoch/acc_acc"].append(epoch_accuracy_acc)
+                    run[f"{phase}/epoch/acc_bottoms"].append(epoch_accuracy_bottoms)
+                    run[f"{phase}/epoch/acc_decoding"].append(epoch_accuracy_MLM)
 
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy (Shoes): {epoch_accuracy_shoes}')
@@ -381,10 +378,10 @@ class umBERT2_trainer():
 
 
                 # update the accuracy of the classification task
-                pred_labels_shoes = torch.max((self.model.softmax(dict_outputs['shoes'], dim=1)), dim=1).indices
-                pred_labels_tops = torch.max((self.model.softmax(dict_outputs['tops'], dim=1)), dim=1).indices
-                pred_labels_acc = torch.max((self.model.softmax(dict_outputs['accessories'], dim=1)), dim=1).indices
-                pred_labels_bottoms = torch.max((self.model.softmax(dict_outputs['bottoms'], dim=1)), dim=1).indices
+                pred_labels_shoes = self.find_closest_embeddings(dict_outputs['shoes'])
+                pred_labels_tops = self.find_closest_embeddings(dict_outputs['tops'])
+                pred_labels_acc = self.find_closest_embeddings(dict_outputs['accessories'])
+                pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms'])  # this is an ID list
 
                 # update the accuracy of the MLM task
                 accuracy_shoes += torch.sum(pred_labels_shoes == labels_shoes)

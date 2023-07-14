@@ -38,7 +38,7 @@ def mask_one_item_per_time(outfit: torch.Tensor, outfit_dataframe: pd.DataFrame,
         for masked_idx in range(4):
             # save the index of the masked item
             masked_indexes.append(masked_idx)
-            label = list(catalogue['ID'].values).index(outfit_labels[masked_idx])  # label is the position of the masked item in the catalogue
+            label = outfit_labels[masked_idx] # label is the ID of the masked item in the catalogue
             labels.append(label)  # save the label of the masked item
             masked_outfit[masked_idx, i * sequence_length + masked_idx, :] = torch.from_numpy(MASK)  # mask the item
 
