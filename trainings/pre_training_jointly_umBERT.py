@@ -1,11 +1,15 @@
 import json
 import random
 
+import neptune
+from hyperopt import hp, tpe, Trials, STATUS_OK, fmin
+from lion_pytorch import Lion
+
 from BERT_architecture.umBERT import umBERT
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 import os
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.masking_input import masking_input
@@ -14,6 +18,19 @@ import numpy as np
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from utility.umBERT_trainer import umBERT_trainer
 from constants import get_special_embeddings
+
+model = neptune.init_model(
+    name="umBERT pre-training jointly on BC and MLM",
+    key="MOD",
+    project="marcopaolodeeplearning/DeepLearningClothes",
+    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==", # your credentials
+)
+
+# define the run for monitoring the training on Neptune dashboard
+run = neptune.init_run(
+    project="marcopaolodeeplearning/DeepLearningClothes",
+    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==",
+)  # your credentials
 
 # set the seed for reproducibility
 random.seed(42)
@@ -126,17 +143,85 @@ validloader = DataLoader(validation_set, batch_size=32, shuffle=True, num_worker
 dataloaders = {'train': trainloader, 'val': validloader}
 masked_indices = {'train': masked_indexes_train, 'val': masked_indexes_valid}
 
+### hyperparameters tuning ###
+print('Starting hyperparameters tuning...')
+# define the maximum number of evaluations
+max_evals = 10
+# define the search space
+possible_n_heads = [1, 2, 4, 8]
+possible_n_encoders = [i for i in range(1, 12)]
+possible_n_epochs = [20, 50, 100]
+possible_batch_size = [16, 32, 64]
+possible_optimizers = [Adam, AdamW, Lion]
+
+space = {
+    'lr': hp.uniform('lr', 1e-5, 1e-2),
+    'batch_size': hp.choice('batch_size', possible_batch_size),
+    'n_epochs': hp.choice('n_epochs', possible_n_epochs),
+    'dropout': hp.uniform('dropout', 0, 0.5),
+    'num_encoders': hp.choice('num_encoders', possible_n_encoders),
+    'num_heads': hp.choice('num_heads', possible_n_heads),
+    'weight_decay': hp.uniform('weight_decay', 0, 0.1),
+    'optimizer': hp.choice('optimizer', possible_optimizers)
+}
+
+# define the algorithm
+tpe_algorithm = tpe.suggest
+
+# define the trials object
+baeyes_trials = Trials()
+
+# define the objective function
+def objective(params):
+    # define the model
+    model = umBERT(catalogue_size=catalogue['ID'].size, d_model=dim_embeddings, num_encoders=params['num_encoders'],
+                    num_heads=params['num_heads'], dropout=params['dropout'])
+    # define the optimizer
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+
+    # define the criteria
+    criterion = CrossEntropyLoss()
+    # define the trainer
+    trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion, device=device, n_epochs=params['n_epochs'])
+    # train the model
+    loss = trainer.pre_train_BERT_like(dataloaders=dataloaders, run=None)
+
+    # return the loss and the accuracy
+    return {'loss': loss, 'params': params, 'status': STATUS_OK}
+
+# optimize
+best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
+
+# optimal model
+print('hyperparameters tuning completed!')
+print(f'the best hyperparameters combination is: {best}')
+
+# define the parameters
+params = {
+    'lr': best['lr'],
+    'batch_size': possible_batch_size[best['batch_size']],
+    'n_epochs': possible_n_epochs[best['n_epochs']],
+    'dropout': best['dropout'],
+    'd_model': dim_embeddings,
+    'num_encoders': possible_n_encoders[best['num_encoders']],
+    'num_heads': possible_n_heads[best['num_heads']],
+    'weight_decay': best['weight_decay']
+}
+
+run["parameters"] = params
+
 # define the umBERT model
-model = umBERT(catalogue_size=catalogue['ID'].size, d_model=embeddings.shape[1], num_encoders=6, num_heads=1,
-               dropout=0.2, dim_feedforward=None)
+model = umBERT(catalogue_size=catalogue['ID'].size, d_model=dim_embeddings, num_encoders=params['num_encoders'],
+               num_heads=params['num_heads'], dropout=params['dropout'])
 
 # use Adam as optimizer as suggested in the paper
-adam = Adam(params=model.parameters(), lr=1e-4, betas=(0.9, 0.999), weight_decay=0.01, eps=1e-08)
-criterion_MLM = CrossEntropyLoss()
-criterion_BC = CrossEntropyLoss()
-criteria = {'BC': criterion_BC, 'MLM': criterion_MLM}
+optimizer = possible_optimizers[best['optimizer']](params=model.parameters(), lr=params['lr'],
+                                                   betas=(0.9, 0.999), weight_decay=params['weight_decay'])
+criterion = CrossEntropyLoss()
 
 print('Start pre-training the model')
-trainer = umBERT_trainer(model=model, optimizer=adam, criterion=criteria, device=device, n_epochs=20)
-trainer.pre_train_BERT_like(dataloaders=dataloaders)
+trainer = umBERT_trainer(model=model, optimizer=optimizer, criterion=criterion,
+                         device=device, n_epochs=params['n_epochs'])
+trainer.pre_train_BERT_like(dataloaders=dataloaders, run=run)
+run.stop()
 print('Pre-training completed')

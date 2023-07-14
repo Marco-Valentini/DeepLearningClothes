@@ -29,11 +29,12 @@ class umBERT_trainer():
         self.device = device
         self.n_epochs = n_epochs
 
-    def pre_train_BERT_like(self, dataloaders):
+    def pre_train_BERT_like(self, dataloaders, run):
         """
         This function performs the pre-training of the umBERT model in a BERT-like fashion (MLM + classification tasks)
         :param dataloaders: the dataloaders used to load the data (train and validation)
         :param masked_positions: the positions of the masked elements in the outfit(train and validation)
+        :param run: the run of the experiment (used to save the model and the plots of the loss and accuracy on neptune.ai)
         :return: None
         """
         train_loss = []  # keep track of the loss of the training phase
@@ -128,6 +129,11 @@ class umBERT_trainer():
                 # compute the average accuracy of the MLM task of the epoch
                 epoch_accuracy_MLM = accuracy_MLM / len(dataloaders[phase].dataset)
 
+                if run is not None:
+                    run[f"pre-train_Bert-like{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"pre-train_Bert-like{phase}/epoch/acc_clf"].append(epoch_accuracy_classification)
+                    run[f"pre-train_Bert-like{phase}/epoch/acc_mlm"].append(epoch_accuracy_MLM)
+
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy (Classification): {epoch_accuracy_classification}')
                 print(f'{phase} Accuracy (MLM): {epoch_accuracy_MLM}')
@@ -170,11 +176,13 @@ class umBERT_trainer():
         plt.legend()
         plt.title('Accuracy (MLM) in joint training')
         plt.show()
+        return valid_loss_min
 
-    def pre_train_BC(self, dataloaders):
+    def pre_train_BC(self, dataloaders, run):
         """
         This function performs the pre-training of the umBERT model only on the classification tasks
         :param dataloaders: the dataloaders used to load the data (train and validation)
+        :param run: the run of the experiment (used to save the model and the plots of the loss and accuracy on neptune.ai)
         :return: None
         """
         train_loss = []
@@ -182,6 +190,8 @@ class umBERT_trainer():
         train_acc = []
         val_acc = []
         valid_loss_min = np.Inf  # track change in validation loss
+        self.model = self.model.to(self.device)  # set the model to run on the device
+
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
                 print(f'Epoch: {epoch + 1}/{self.n_epochs} | Phase: {phase}')
@@ -244,6 +254,10 @@ class umBERT_trainer():
                                    '../models/umBERT_pretrained_BC.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
 
+                if run is not None:
+                    run[f"pre-train_BC/{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"pre-train_BC{phase}/epoch/acc_clf"].append(epoch_accuracy)
+
                 print(f'{phase} Loss: {epoch_loss:.10f}')
                 print(f'{phase} Accuracy : {epoch_accuracy:.10f}')
         plt.plot(train_loss, label='train loss')
@@ -257,11 +271,12 @@ class umBERT_trainer():
         plt.legend()
         plt.show()
 
-    def pre_train_MLM(self, dataloaders):
+    def pre_train_MLM(self, dataloaders, run):
         """
         This function performs the pre-training of the umBERT model only on the MLM task
         :param dataloaders: the dataloaders used to load the data (train and validation)
         :param masked_positions: the positions of the masked elements (train and validation)
+        :param run: the run of the experiment (used to save the model and the plots of the loss and accuracy on neptune.ai)
         :return: None
         """
         train_loss = []
@@ -315,6 +330,10 @@ class umBERT_trainer():
                 epoch_accuracy = accuracy / len(
                     dataloaders[phase].dataset)  # compute the average accuracy of the MLM task of the epoch
 
+                if run is not None:
+                    run[f"pre-train_MLM/{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"pre-train_MLM/{phase}/epoch/acc_mlm"].append(epoch_accuracy)
+
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy: {epoch_accuracy}')
                 if phase == 'train':
@@ -349,7 +368,7 @@ class umBERT_trainer():
         plt.legend()
         plt.show()
 
-    def fine_tuning(self, dataloaders, freeze=0, fine_tuning_epochs=10):
+    def fine_tuning(self, dataloaders, freeze=0, fine_tuning_epochs=10, run=None):
         if freeze > 0:
             count = 0
             for param in self.model.parameters():
@@ -409,6 +428,10 @@ class umBERT_trainer():
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 epoch_accuracy = accuracy / len(
                     dataloaders[phase].dataset)  # compute the average accuracy of the MLM task of the epoch
+
+                if run is not None:
+                    run[f"finetuning/{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"finetuning/{phase}/epoch/acc_clf"].append(epoch_accuracy)
 
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy: {epoch_accuracy}')

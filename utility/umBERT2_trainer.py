@@ -1,4 +1,8 @@
+import json
+
 import torch
+from torch.nn import CosineSimilarity
+
 from BERT_architecture.umBERT2 import umBERT2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,12 +26,14 @@ class umBERT2_trainer():
         self.criterion = criterion
         self.device = device
         self.n_epochs = n_epochs
+        self.cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
 
-    def pre_train(self, dataloaders):
+    def pre_train(self, dataloaders, run):
         """
         This function performs the pre-training of the umBERT model in a BERT-like fashion (MLM + classification tasks)
         :param dataloaders: the dataloaders used to load the data (train and validation)
         :param masked_positions: the positions of the masked elements in the outfit(train and validation)
+        :param run: the run of the experiment (used to save the model and the plots of the loss and accuracy on neptune.ai)
         :return: None
         """
         train_loss = []  # keep track of the loss of the training phase
@@ -38,8 +44,6 @@ class umBERT2_trainer():
         val_acc_decoding = []  # keep track of the accuracy of the validation phase on the MLM classification task
 
         valid_loss_min = np.Inf  # track change in validation loss
-        best_valid_acc_CLF = 0  # track change in validation accuracy CLF
-        best_valid_acc_decoding = 0  # track change in validation accuracy MLM
         self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
@@ -62,6 +66,7 @@ class umBERT2_trainer():
                 for inputs, labels in dataloaders[phase]:  # for each batch
                     inputs = inputs.to(self.device)  # move the data to the device
                     labels_CLF = labels[:, 0].type(torch.LongTensor).to(self.device)  # move the labels_CLF to the device
+                    # the labels of each item are the IDs in the catalogue
                     labels_shoes = labels[:, 1].type(torch.LongTensor).to(self.device)  # move the labels_shoes to the device
                     labels_tops = labels[:, 2].type(torch.LongTensor).to(self.device)  # move the labels_tops to the device
                     labels_acc = labels[:, 3].type(torch.LongTensor).to(self.device)  # move the labels_acc to the device
@@ -69,13 +74,17 @@ class umBERT2_trainer():
 
                     # do a one-hot encoding of the labels of the classification task and move them to the device
                     labels_CLF_one_hot = torch.nn.functional.one_hot(labels_CLF, num_classes=2).to(self.device)
-                    labels_shoes_one_hot = torch.nn.functional.one_hot(labels_shoes, num_classes=self.model.catalogue_sizes['shoes']).to(self.device)
-                    labels_tops_one_hot = torch.nn.functional.one_hot(labels_tops, num_classes=self.model.catalogue_sizes['tops']).to(self.device)
-                    labels_acc_one_hot = torch.nn.functional.one_hot(labels_acc, num_classes=self.model.catalogue_sizes['accessories']).to(self.device)
-                    labels_bottoms_one_hot = torch.nn.functional.one_hot(labels_bottoms, num_classes=self.model.catalogue_sizes['bottoms']).to(self.device)
 
-                    dict_labels = {'clf': labels_CLF_one_hot, 'shoes': labels_shoes_one_hot, 'tops': labels_tops_one_hot,
-                                      'accessories': labels_acc_one_hot, 'bottoms': labels_bottoms_one_hot}
+                    # create a dictionary with the inputs of the model (reconstruction + classification tasks)
+                    # will be used to compute the loss
+                    dict_inputs = {
+                        'clf': labels_CLF_one_hot,
+                        'shoes': inputs[:, 1, :],
+                        'tops': inputs[:, 2, :],
+                        'accessories': inputs[:, 3, :],
+                        'bottoms': inputs[:, 4, :]
+                    }
+
                     self.optimizer.zero_grad()  # zero the gradients
 
                     # set the gradient computation only if in training phase
@@ -84,7 +93,7 @@ class umBERT2_trainer():
                         dict_outputs = self.model.forward(inputs)
 
                         # compute the total loss (sum of the average values of the two losses)
-                        loss = self.compute_loss(dict_outputs, dict_labels)
+                        loss = self.compute_loss(dict_outputs, dict_inputs)
 
                         if phase == 'train':
                             loss.backward()  # compute the gradients of the loss
@@ -95,10 +104,10 @@ class umBERT2_trainer():
 
                     # update the accuracy of the classification task
                     pred_labels_CLF = torch.max((self.model.softmax(dict_outputs['clf'], dim=1)), dim=1).indices
-                    pred_labels_shoes = torch.max((self.model.softmax(dict_outputs['shoes'], dim=1)), dim=1).indices
-                    pred_labels_tops = torch.max((self.model.softmax(dict_outputs['tops'], dim=1)), dim=1).indices
-                    pred_labels_acc = torch.max((self.model.softmax(dict_outputs['accessories'], dim=1)), dim=1).indices
-                    pred_labels_bottoms = torch.max((self.model.softmax(dict_outputs['bottoms'], dim=1)), dim=1).indices
+                    pred_labels_shoes = self.find_closest_embeddings(dict_outputs['shoes'])
+                    pred_labels_tops = self.find_closest_embeddings(dict_outputs['tops'])
+                    pred_labels_acc = self.find_closest_embeddings(dict_outputs['accessories'])
+                    pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms'])
 
                     # update the accuracy of the classification task
                     accuracy_CLF += torch.sum(pred_labels_CLF == labels_CLF)
@@ -118,6 +127,15 @@ class umBERT2_trainer():
                 epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
                 # compute the average accuracy of the MLM task of the epoch
                 epoch_accuracy_decoding = (epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+
+                if run is not None:
+                    run[f"{phase}/epoch/loss"].append(epoch_loss)
+                    run[f"{phase}/epoch/acc_clf"].append(epoch_accuracy_CLF)
+                    run[f"{phase}/epoch/acc_shoes"].append(epoch_accuracy_shoes)
+                    run[f"{phase}/epoch/acc_tops"].append(epoch_accuracy_tops)
+                    run[f"{phase}/epoch/acc_acc"].append(epoch_accuracy_acc)
+                    run[f"{phase}/epoch/acc_bottoms"].append(epoch_accuracy_bottoms)
+                    run[f"{phase}/epoch/acc_decoding"].append(epoch_accuracy_decoding)
 
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy (Classification): {epoch_accuracy_CLF}')
@@ -148,10 +166,8 @@ class umBERT2_trainer():
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-                        torch.save(checkpoint, '../models/umBERT_pretrained_BERT2.pth')  # save the checkpoint dictionary to a file
+                        torch.save(checkpoint, '../models/umBERT2_pretrained.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
-                        best_valid_acc_CLF = epoch_accuracy_CLF
-                        best_valid_acc_decoding = epoch_accuracy_decoding
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
@@ -167,19 +183,34 @@ class umBERT2_trainer():
         plt.legend()
         plt.title('Accuracy (decoding) training')
         plt.show()
-        return best_valid_acc_CLF, best_valid_acc_decoding
+        return valid_loss_min
 
-    def compute_loss(self, dict_outputs, dict_labels):
-        loss_shoes = self.criterion(dict_outputs['shoes'], dict_labels['shoes'].float())
-        loss_tops = self.criterion(dict_outputs['tops'], dict_labels['tops'].float())
-        loss_acc = self.criterion(dict_outputs['accessories'], dict_labels['accessories'].float())
-        loss_bottoms = self.criterion(dict_outputs['bottoms'], dict_labels['bottoms'].float())
+    def compute_loss(self, dict_outputs, dict_input):
+        loss_shoes = self.criterion['recons'](dict_outputs['shoes'], dict_input['shoes'], 1)
+        loss_tops = self.criterion['recons'](dict_outputs['tops'], dict_input['tops'], 1)
+        loss_acc = self.criterion['recons'](dict_outputs['accessories'], dict_input['accessories'], 1)
+        loss_bottoms = self.criterion['recons'](dict_outputs['bottoms'], dict_input['bottoms'], 1)
         if 'clf' in dict_outputs.keys():
-            loss_clf = self.criterion(dict_outputs['clf'], dict_labels['clf'].float())
+            loss_clf = self.criterion['clf'](dict_outputs['clf'], dict_input['clf'].float())
             loss = loss_shoes + loss_tops + loss_acc + loss_bottoms + loss_clf
         else:
             loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
         return loss
+
+    def find_closest_embeddings(self, recons_embeddings):
+        embeddings = np.load(f'../reduced_data/embeddings_{self.model.d_model}.npy')
+        with open('../reduced_data/IDs_list') as f:
+            IDs_list = json.load(f)
+        closest_embeddings = []
+        for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
+            # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
+            distances = self.cosine_similarity(recons_embeddings[i, 0, :].unsqueeze(0), embeddings)
+            # find the index of the closest embedding
+            idx = torch.max(distances).indices
+            # retrieve the ID of the closest embedding
+            closest_embeddings.append(IDs_list[idx])
+        return closest_embeddings
+
 
     def fine_tuning(self,dataloaders):
         # fine-tuning on the fill in the blank task, input 4 tokens and one is masked

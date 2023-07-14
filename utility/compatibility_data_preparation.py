@@ -2,10 +2,14 @@
 # outfit composed of 4 items belonging to the categories ['tops','bottoms','accessories','shoes'] and save them into a
 # csv file containing the item IDs
 # import required libraries
+import os
+
 import pandas as pd
 import numpy as np
 import json
 
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # define the required functions
 def retrieve_item(set_id_n):
@@ -195,3 +199,28 @@ for fold in ['nondisjoint','disjoint']:
         # save the reduced dataset
         destination_path = f'../reduced_data/{fold}_reduced_compatibility_{data_set}.csv'
         df.to_csv(destination_path, index=False)
+
+# join the disjoint and non disjoint dataset in a single one
+df_train_disjoint = pd.read_csv('../reduced_data/disjoint_reduced_compatibility_train.csv')
+df_train_nondisjoint = pd.read_csv('../reduced_data/nondisjoint_reduced_compatibility_train.csv')
+df_valid_disjoint = pd.read_csv('../reduced_data/disjoint_reduced_compatibility_valid.csv')
+df_valid_nondisjoint = pd.read_csv('../reduced_data/nondisjoint_reduced_compatibility_valid.csv')
+df_test_disjoint = pd.read_csv('../reduced_data/disjoint_reduced_compatibility_test.csv')
+df_test_nondisjoint = pd.read_csv('../reduced_data/nondisjoint_reduced_compatibility_test.csv')
+# concatenate all the dataframes
+df = pd.concat([df_train_disjoint, df_train_nondisjoint, df_valid_disjoint, df_valid_nondisjoint, df_test_disjoint,
+                df_test_nondisjoint], axis=0)
+# remove the duplicates
+df.drop_duplicates(inplace=True)
+# reset the index
+df.reset_index(inplace=True, drop=True)
+# save the final datasets
+df.to_csv('../reduced_data/reduced_compatibility.csv', index=False)
+# delete the old datasets
+os.remove('../reduced_data/disjoint_reduced_compatibility_train.csv')
+os.remove('../reduced_data/nondisjoint_reduced_compatibility_train.csv')
+os.remove('../reduced_data/disjoint_reduced_compatibility_valid.csv')
+os.remove('../reduced_data/nondisjoint_reduced_compatibility_valid.csv')
+os.remove('../reduced_data/disjoint_reduced_compatibility_test.csv')
+os.remove('../reduced_data/nondisjoint_reduced_compatibility_test.csv')
+
