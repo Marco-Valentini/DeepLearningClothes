@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 
 class umBERT2(nn.Module):
@@ -36,7 +37,7 @@ class umBERT2(nn.Module):
             dropout=self.dropout,
             activation="gelu",
             batch_first=True,  # Set batch_first to True
-        ), num_layers=num_encoders, enable_nested_tensor=False)  # the encoder stack is a transformer encoder stack
+        ), num_layers=num_encoders, enable_nested_tensor=(num_heads%2==0))  # the encoder stack is a transformer encoder stack
         self.ffnn_shoes = nn.Linear(d_model, catalogue_sizes['shoes'])  # for prediction of the first item in the outfit
         self.ffnn_tops = nn.Linear(d_model, catalogue_sizes['tops'])  # for prediction of the second item in the outfit
         self.ffnn_acc = nn.Linear(d_model, catalogue_sizes['accessories'])  # for prediction of the third item in the outfit
@@ -87,3 +88,24 @@ class umBERT2(nn.Module):
         pred_labels_acc = torch.max(pred_labels_acc, dim=1).indices  # compute the indices of the predicted items
         pred_labels_bottoms = torch.max(pred_labels_bottoms, dim=1).indices  # compute the indices of the predicted items
         return pred_cls, pred_labels_shoes, pred_labels_tops, pred_labels_acc, pred_labels_bottoms
+
+    def predict_fine_tune(self, test_outfit):
+        """
+        This function takes as input an outfit and returns the probability distribution over the catalogue
+        for each item in the outfit.
+        :param test_outfit: the outfit embedding
+        :return: the probability distributions over each catalogue
+        """
+        # compute the logits for each item in the outfit
+        output = self.forward(test_outfit)  # compute the output of the encoders stack (forward pass)
+        # compute the probability distributions over the catalogues
+        pred_labels_shoes = self.softmax(output['logits_shoes'], dim=1)  # compute the probability distribution over the shoes catalogue
+        pred_labels_tops = self.softmax(output['logits_tops'], dim=1)  # compute the probability distribution over the tops catalogue
+        pred_labels_acc = self.softmax(output['logits_acc'], dim=1)  # compute the probability distribution over the acc catalogue
+        pred_labels_bottoms = self.softmax(output['logits_bottoms'], dim=1)  # compute the probability distribution over the bottoms catalogue
+        # compute the indices of the predicted items
+        pred_labels_shoes = torch.max(pred_labels_shoes, dim=1).indices  # compute the indices of the predicted items
+        pred_labels_tops = torch.max(pred_labels_tops, dim=1).indices  # compute the indices of the predicted items
+        pred_labels_acc = torch.max(pred_labels_acc, dim=1).indices  # compute the indices of the predicted items
+        pred_labels_bottoms = torch.max(pred_labels_bottoms, dim=1).indices  # compute the indices of the predicted items
+        return pred_labels_shoes, pred_labels_tops, pred_labels_acc, pred_labels_bottoms

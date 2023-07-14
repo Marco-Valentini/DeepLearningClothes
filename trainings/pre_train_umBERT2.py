@@ -19,11 +19,6 @@ from utility.masking_input import masking_input
 from utility.umBERT2_trainer import umBERT2_trainer
 import json
 from constants import get_special_embeddings
-import neptune
-from neptune.types import File
-
-run = neptune.init_run(project='<username>/Experiment-Tracking-PyTorch',
-                   api_token=NEPTUNE_API_TOKEN)
 
 # set the seed for reproducibility
 random.seed(42)
@@ -67,7 +62,7 @@ train_dataframe = pd.read_csv('../reduced_data/reduced_compatibility_train2.csv'
 compatibility_train = train_dataframe['compatibility'].values
 train_dataframe.drop(columns=['compatibility'], inplace=True)
 
-# create the labels for each item in the catalogue with resepct to their position in their catalogue
+# create the labels for each item in the catalogue with respect to their position in their catalogue
 # (e.g. the first item of the catalogue has label 0, the second item has label 1, etc.)
 category_labels_train = get_category_labels(train_dataframe, catalogues)
 

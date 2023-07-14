@@ -110,88 +110,88 @@ def count_categories(column):
 
 # import the catalogue ID-Category
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
+for fold in ['nondisjoint','disjoint']:
+    for data_set in ['train', 'test', 'valid']:  # for each data set apply the following operations
+        # read the data from the <train, test, valid>.txt file
+        path = f'../dataset/{fold}/compatibility_{data_set}.txt'
+        with open(path) as file:
+            data = file.read()
+        # obtain a list with one element for each line
+        data = data.split('\n')
+        # remove the double spaces
+        data = [line.replace('  ', ' ') for line in data]
+        # obtain an element for each word in each line
+        data = [line.split(' ') for line in data]
+        # convert into pandas DataFrame
+        max_len = max([len(line) for line in data])  # max number of items in an outfit
+        labels = ['compatibility'] + ['item_' + str(i) for i in range(1, max_len)]
 
-for data_set in ['train', 'test', 'valid']:  # for each data set apply the following operations
-    # read the data from the <train, test, valid>.txt file
-    path = f'../dataset/disjoint/compatibility_{data_set}.txt'
-    with open(path) as file:
-        data = file.read()
-    # obtain a list with one element for each line
-    data = data.split('\n')
-    # remove the double spaces
-    data = [line.replace('  ', ' ') for line in data]
-    # obtain an element for each word in each line
-    data = [line.split(' ') for line in data]
-    # convert into pandas DataFrame
-    max_len = max([len(line) for line in data])  # max number of items in an outfit
-    labels = ['compatibility'] + ['item_' + str(i) for i in range(1, max_len)]
+        df = pd.DataFrame(data, columns=labels, index=[i for i in range(len(data))])
 
-    df = pd.DataFrame(data, columns=labels, index=[i for i in range(len(data))])
+        with open(f'../dataset/{fold}/{data_set}.json') as file:
+            set_json = json.load(file)
 
-    with open(f'../dataset/disjoint/{data_set}.json') as file:
-        set_json = json.load(file)
+        indexes_to_drop = []
+        for i in range(df.shape[0]):
+            row = df.loc[i]
+            count = count_not_null(row)
+            if count < 5:
+                indexes_to_drop.append(i)
 
-    indexes_to_drop = []
-    for i in range(df.shape[0]):
-        row = df.loc[i]
-        count = count_not_null(row)
-        if count < 5:
-            indexes_to_drop.append(i)
+        df.drop(index=indexes_to_drop, axis=0, inplace=True)
+        df.reset_index(inplace=True, drop=True)
 
-    df.drop(index=indexes_to_drop, axis=0, inplace=True)
-    df.reset_index(inplace=True, drop=True)
+        # substitute the set_id_index with the item id which corresponds to
+        df = df.applymap(retrieve_item)
 
-    # substitute the set_id_index with the item id which corresponds to
-    df = df.applymap(retrieve_item)
+        # check that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)
+        if df['item_1'].isna().sum() == 0 and df['item_2'].isna().sum() == 0 and df['item_3'].isna().sum() == 0 and df[
+            'item_4'].isna().sum() == 0:
+            print('OK - no outfit with less than 4 items in the DataFrame')
 
-    # check that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)
-    if df['item_1'].isna().sum() == 0 and df['item_2'].isna().sum() == 0 and df['item_3'].isna().sum() == 0 and df[
-        'item_4'].isna().sum() == 0:
-        print('OK - no outfit with less than 4 items in the DataFrame')
+        # set to None all the items not belonging to the allowed categories
+        df = df.applymap(is_in_categories)  # apply this 'is_in_category filter'
+        df.reset_index(inplace=True, drop=True)
 
-    # set to None all the items not belonging to the allowed categories
-    df = df.applymap(is_in_categories)  # apply this 'is_in_category filter'
-    df.reset_index(inplace=True, drop=True)
+        # remove the no more valid outfits
+        indexes_to_drop = []
+        for i in range(df.shape[0]):
+            row = df.loc[i]
+            count = count_not_null(row)
+            if count < 5:
+                indexes_to_drop.append(i)
 
-    # remove the no more valid outfits
-    indexes_to_drop = []
-    for i in range(df.shape[0]):
-        row = df.loc[i]
-        count = count_not_null(row)
-        if count < 5:
-            indexes_to_drop.append(i)
+        df.drop(index=indexes_to_drop, axis=0, inplace=True)
+        df.reset_index(inplace=True, drop=True)
 
-    df.drop(index=indexes_to_drop, axis=0, inplace=True)
-    df.reset_index(inplace=True, drop=True)
+        # remove the None and compact
+        df = remove_and_compact(df)
+        # check if the classes are balanced or not
+        value_counts = df['compatibility'].value_counts()
+        print(f"Proportion of negative/positive samples {value_counts}")
+        # check the number of items for each column
+        print(f"Phase  {data_set} data {fold}")
+        count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_1'])
+        print(f"Number of tops in column 1: {count_tops}")
+        print(f"Number of bottoms in column 1: {count_bottoms}")
+        print(f"Number of shoes in column 1: {count_shoes}")
+        print(f"Number of accessories in column 1: {count_accessories}")
+        count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_2'])
+        print(f"Number of tops in column 2: {count_tops}")
+        print(f"Number of bottoms in column 2: {count_bottoms}")
+        print(f"Number of shoes in column 2: {count_shoes}")
+        print(f"Number of accessories in column 2: {count_accessories}")
+        count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_3'])
+        print(f"Number of tops in column 3: {count_tops}")
+        print(f"Number of bottoms in column 3: {count_bottoms}")
+        print(f"Number of shoes in column 3: {count_shoes}")
+        print(f"Number of accessories in column 3: {count_accessories}")
+        count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_4'])
+        print(f"Number of tops in column 4: {count_tops}")
+        print(f"Number of bottoms in column 4: {count_bottoms}")
+        print(f"Number of shoes in column 4: {count_shoes}")
+        print(f"Number of accessories in column 4: {count_accessories}")
 
-    # remove the None and compact
-    df = remove_and_compact(df)
-    # check if the classes are balanced or not
-    value_counts = df['compatibility'].value_counts()
-    print(f"Proportion of negative/positive samples {value_counts}")
-    # check the number of items for each column
-    print(f"Phase  {data_set}")
-    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_1'])
-    print(f"Number of tops in column 1: {count_tops}")
-    print(f"Number of bottoms in column 1: {count_bottoms}")
-    print(f"Number of shoes in column 1: {count_shoes}")
-    print(f"Number of accessories in column 1: {count_accessories}")
-    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_2'])
-    print(f"Number of tops in column 2: {count_tops}")
-    print(f"Number of bottoms in column 2: {count_bottoms}")
-    print(f"Number of shoes in column 2: {count_shoes}")
-    print(f"Number of accessories in column 2: {count_accessories}")
-    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_3'])
-    print(f"Number of tops in column 3: {count_tops}")
-    print(f"Number of bottoms in column 3: {count_bottoms}")
-    print(f"Number of shoes in column 3: {count_shoes}")
-    print(f"Number of accessories in column 3: {count_accessories}")
-    count_tops, count_bottoms, count_shoes, count_accessories = count_categories(df['item_4'])
-    print(f"Number of tops in column 4: {count_tops}")
-    print(f"Number of bottoms in column 4: {count_bottoms}")
-    print(f"Number of shoes in column 4: {count_shoes}")
-    print(f"Number of accessories in column 4: {count_accessories}")
-
-    # save the reduced dataset
-    destination_path = f'../reduced_data/reduced_compatibility_{data_set}.csv'
-    df.to_csv(destination_path, index=False)
+        # save the reduced dataset
+        destination_path = f'../reduced_data/{fold}_reduced_compatibility_{data_set}.csv'
+        df.to_csv(destination_path, index=False)
