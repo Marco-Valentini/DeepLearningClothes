@@ -49,7 +49,7 @@ device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
 print('Device used: ', device)
 
 # read the dataset
-df = pd.read_csv('../../dataset/reduced_compatibility.csv')
+df = pd.read_csv('../reduced_compatibility.csv')
 
 # split the dataset in train, valid and test set (80%, 10%, 10%) in a stratified way on the compatibility column
 compatibility = df['compatibility']
@@ -64,7 +64,7 @@ with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
 
-with open('../reduced_data/embeddings_512_old.npy', 'rb') as f:
+with open('../reduced_data/embeddings_128.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # create the tensor dataset for the training set (which contains the CLS embedding)
