@@ -6,6 +6,7 @@ from torch.nn import CosineSimilarity
 from BERT_architecture.umBERT2 import umBERT2
 import matplotlib.pyplot as plt
 import numpy as np
+from datetime import datetime
 
 class umBERT2_trainer():
     """
@@ -166,7 +167,12 @@ class umBERT2_trainer():
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-                        torch.save(checkpoint, '../models/umBERT2_pretrained.pth')  # save the checkpoint dictionary to a file
+                        # datetime object containing current date and time
+                        now = datetime.now()
+                        # dd/mm/YY H:M:S
+                        dt_string = now.strftime("%d/%m/%Y%H:%M:%S")
+                        torch.save(checkpoint,
+                                   f'../models/umBERT_finetuned_BERT2_{dt_string}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
@@ -329,8 +335,12 @@ class umBERT2_trainer():
                                       'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
+                        # datetime object containing current date and time
+                        now = datetime.now()
+                        # dd/mm/YY H:M:S
+                        dt_string = now.strftime("%d/%m/%Y%H:%M:%S")
                         torch.save(checkpoint,
-                                   '../models/umBERT_finetuned_BERT2.pth')  # save the checkpoint dictionary to a file
+                                   f'../models/umBERT_finetuned_BERT2_{dt_string}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_MLM = epoch_accuracy_MLM
         plt.plot(train_loss, label='train')
