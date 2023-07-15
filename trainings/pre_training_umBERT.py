@@ -20,12 +20,6 @@ from utility.umBERT_trainer import umBERT_trainer
 import json
 from constants import get_special_embeddings
 
-# define the run for monitoring the training on Neptune dashboard
-run = neptune.init_run(
-    project="marcopaolodeeplearning/DeepLearningClothes",
-    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==",
-)  # your credentials
-
 # set the seed for reproducibility
 random.seed(42)
 np.random.seed(42)
@@ -38,6 +32,12 @@ CLS, MASK = get_special_embeddings(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+# define the run for monitoring the training on Neptune dashboard
+run = neptune.init_run(
+    project="marcopaolodeeplearning/DeepLearningClothes",
+    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==",
+)  # your credentials
 
 # use GPU if available
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")

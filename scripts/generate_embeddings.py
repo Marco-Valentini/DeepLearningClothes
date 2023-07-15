@@ -14,9 +14,9 @@ from utility.custom_image_dataset import CustomImageDataset
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # use GPU if available
-device = torch.device("mps" if torch.has_mps else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 
-catalogue = pd.read_csv('./reduced_data/reduced_catalogue.csv')  # load the catalogue
+catalogue = pd.read_csv('./reduced_data/dataset_catalogue.csv')  # load the catalogue
 
 # first step: obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18_512.pth
 
@@ -37,7 +37,7 @@ data_transform = transforms.Compose([  # define the transformations to be applie
 data_dir = './dataset_catalogue'
 
 image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
-dataloader = DataLoader(image_dataset, batch_size=32, shuffle=False, num_workers=0)  # create the dataloader
+dataloader = DataLoader(image_dataset, batch_size=128, shuffle=False, num_workers=0)  # create the dataloader
 
 # get the embeddings of the dataset, the labels and the ids
 embeddings, labels, ids = image_to_embedding(dataloader, model, device)

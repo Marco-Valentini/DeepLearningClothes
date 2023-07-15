@@ -184,13 +184,13 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, n
 
                 running_loss += loss.item() * inputs.size(0)  # update the loss
                 _, preds = torch.max(outputs, 1)  # get the predicted classes
-                correct += torch.sum(preds == labels.data)  # update the number of correct predictions
+                correct += torch.sum(preds == labels.reduced_catalogue)  # update the number of correct predictions
 
             epoch_loss = running_loss / len(image_datasets[phase])  # calculate the average loss
             epoch_acc = correct / len(image_datasets[phase])  # calculate the accuracy
 
             # compute  precision, recall and F1 score
-            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.data.cpu().numpy(), preds.cpu().numpy(), average='macro')
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(), preds.cpu().numpy(), average='macro')
             print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
 
             if phase == 'train':
@@ -243,7 +243,7 @@ def test_model(model, dataloader, device):
 
             total += labels.size(0)  # update the total number of images
             correct += (preds == labels).sum().item()  # update the number of correct predictions
-            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.data.cpu().numpy(), preds.cpu().numpy(), average='macro', zero_division=0)
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(), preds.cpu().numpy(), average='macro', zero_division=0)
 
         print(f'Accuracy: {correct / total}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
 

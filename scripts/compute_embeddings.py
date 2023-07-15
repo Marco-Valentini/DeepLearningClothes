@@ -11,7 +11,7 @@ from utility.resnet18_modified import Resnet18Modified
 from torchvision.transforms import transforms
 
 # use GPU if available
-device = torch.device("mps" if torch.has_mps else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
 dim_embeddings = 128
@@ -23,9 +23,7 @@ fashion_resnet18 = resnet18()
 fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=checkpoint['dim_embeddings'], num_classes=4)
 
 fashion_resnet18.load_state_dict(checkpoint['state_dict'])  # load the weights of the model finetuned_fashion_resnet18_512.pth
-fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=dim_embeddings, num_classes=4)
-fashion_resnet18.load_state_dict(torch.load(
-    '../models/finetuned_fashion_resnet18_512.pth'))  # load the weights of the model finetuned_fashion_resnet18_512.pth
+
 fashion_resnet18.eval()  # set the model to evaluation mode
 fashion_resnet18.to(device)  # set the model to run on the device
 
@@ -44,7 +42,7 @@ data_transform = transforms.Compose([  # define the transformations to be applie
 data_dir = '../dataset_catalogue'  # define the directory of the dataset
 image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
 
-dataloaders = DataLoader(image_dataset, batch_size=32, shuffle=True, num_workers=0)  # create the dataloader
+dataloaders = DataLoader(image_dataset, batch_size=128, shuffle=True, num_workers=0)  # create the dataloader
 print("Dataset loaded")
 
 print("Computing the embeddings of the dataset")

@@ -14,7 +14,7 @@ from torchvision.transforms import transforms
 device = torch.device("mps" if torch.has_mps else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
-dim_embeddings = 512
+dim_embeddings = 32
 # load thecheckpoint
 checkpoint = torch.load(f'../models/finetuned_fashion_resnet18_{dim_embeddings}.pth')
 # load the model finetuned_fashion_resnet18_{dim_embeddings}.pth
@@ -29,7 +29,7 @@ print("Model loaded")
 
 print("Loading the image dataset")
 
-# load the dataset (just for now, we will use the test dataset)
+# load the dataset
 data_transform = transforms.Compose([  # define the transformations to be applied to the images
     transforms.Resize(256),  # resize the image to 256x256
     transforms.CenterCrop(224),  # crop the image to 224x224

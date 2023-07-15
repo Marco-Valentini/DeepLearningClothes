@@ -162,17 +162,15 @@ class umBERT2_trainer():
                         print('Validation accuracy BC of the saved model: {:.6f}'.format(epoch_accuracy_CLF))
                         print('Validation accuracy MLM of the saved model: {:.6f}'.format(epoch_accuracy_decoding))
                         # save a checkpoint dictionary containing the model state_dict
-                        checkpoint = {'d_model': self.model.d_model, 'catalogue_sizes': self.model.catalogue_sizes,
+                        checkpoint = {'d_model': self.model.d_model,
                                       'num_encoders': self.model.num_encoders,
-                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'num_heads': self.model.num_heads,
+                                      'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-                        # datetime object containing current date and time
-                        now = datetime.now()
-                        # dd/mm/YY H:M:S
-                        dt_string = now.strftime("%d/%m/%Y%H:%M:%S")
+
                         torch.save(checkpoint,
-                                   f'../models/umBERT_finetuned_BERT2_{dt_string}.pth')  # save the checkpoint dictionary to a file
+                                   f'../models/umBERT2_pre_trained_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
@@ -192,10 +190,11 @@ class umBERT2_trainer():
         return valid_loss_min
 
     def compute_loss(self, dict_outputs, dict_input):
-        loss_shoes = self.criterion['recons'](dict_outputs['shoes'], dict_input['shoes'], 1)
-        loss_tops = self.criterion['recons'](dict_outputs['tops'], dict_input['tops'], 1)
-        loss_acc = self.criterion['recons'](dict_outputs['accessories'], dict_input['accessories'], 1)
-        loss_bottoms = self.criterion['recons'](dict_outputs['bottoms'], dict_input['bottoms'], 1)
+        target = torch.ones(dict_input['shoes'].shape[0]).to(self.device)  # target is a tensor of ones
+        loss_shoes = self.criterion['recons'](dict_outputs['shoes'], dict_input['shoes'], target)
+        loss_tops = self.criterion['recons'](dict_outputs['tops'], dict_input['tops'], target)
+        loss_acc = self.criterion['recons'](dict_outputs['accessories'], dict_input['accessories'], target)
+        loss_bottoms = self.criterion['recons'](dict_outputs['bottoms'], dict_input['bottoms'], target)
         if 'clf' in dict_outputs.keys():
             loss_clf = self.criterion['clf'](dict_outputs['clf'], dict_input['clf'].float())
             loss = loss_shoes + loss_tops + loss_acc + loss_bottoms + loss_clf
@@ -205,17 +204,18 @@ class umBERT2_trainer():
 
     def find_closest_embeddings(self, recons_embeddings):
         embeddings = np.load(f'../reduced_data/embeddings_{self.model.d_model}.npy')
+        embeddings = torch.from_numpy(embeddings).to(self.device)  # convert to tensor
         with open('../reduced_data/IDs_list') as f:
             IDs_list = json.load(f)
         closest_embeddings = []
         for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-            distances = self.cosine_similarity(recons_embeddings[i, 0, :].unsqueeze(0), embeddings)
+            distances = self.cosine_similarity(recons_embeddings[i, :], embeddings)
             # find the index of the closest embedding
-            idx = torch.max(distances).indices
+            idx = torch.max(distances, dim=0).indices
             # retrieve the ID of the closest embedding
             closest_embeddings.append(IDs_list[idx])
-        return closest_embeddings
+        return torch.Tensor(closest_embeddings).to(self.device)
 
 
     def fine_tuning(self,dataloaders,run=None):
@@ -227,6 +227,7 @@ class umBERT2_trainer():
         val_acc_MLM = []  # keep track of the accuracy of the validation phase on the MLM classification task
 
         valid_loss_min = np.Inf  # track change in validation loss
+        best_valid_acc_MLM = 0.0  # track change in validation accuracy
         self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
@@ -244,6 +245,7 @@ class umBERT2_trainer():
                 accuracy_tops = 0.0  # keep track of the accuracy of tops classification task
                 accuracy_acc = 0.0  # keep track of the accuracy of accessories classification task
                 accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
+                accuracy_MLM = 0.0  # keep track of the accuracy of the MLM classification task
 
                 for inputs, labels in dataloaders[phase]:  # for each batch
                     # labels has to contain 4 tensors of the 4 items categories, labels are the item IDs
@@ -256,6 +258,11 @@ class umBERT2_trainer():
                         self.device)  # move the labels_acc to the device
                     labels_bottoms = labels[:, 3].type(torch.LongTensor).to(
                         self.device)  # move the labels_bottoms to the device
+                    masked_indexes = labels[:, 4].type(torch.LongTensor).to(
+                        self.device)  # move the masked_indexes to the device
+                    masked_IDs = labels[:, 5].type(torch.LongTensor).to(
+                        self.device)  # move the masked_IDs to the device
+
                     # these are the embeddings of the items in the catalogue
                     dict_inputs = {
                         'shoes': inputs[:, 0, :],
@@ -285,13 +292,26 @@ class umBERT2_trainer():
                     pred_labels_shoes = self.find_closest_embeddings(dict_outputs['shoes'])
                     pred_labels_tops = self.find_closest_embeddings(dict_outputs['tops'])
                     pred_labels_acc = self.find_closest_embeddings(dict_outputs['accessories'])
-                    pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms']) # this is an ID list
+                    pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms'])  # this is an ID list
 
-                    # update the accuracy of the MLM task
+                    pred_masked = []
+                    for i in range(len(masked_indexes)):
+                        if masked_indexes[i] == 0:  # shoes
+                            pred_masked.append(pred_labels_shoes[i])
+                        elif masked_indexes[i] == 1:  # tops
+                            pred_masked.append(pred_labels_tops[i])
+                        elif masked_indexes[i] == 2:  # accessories
+                            pred_masked.append(pred_labels_acc[i])
+                        elif masked_indexes[i] == 3:  # bottoms
+                            pred_masked.append(pred_labels_bottoms[i])
+                    pred_masked = torch.Tensor(pred_masked).to(self.device)
+
+                    # update the accuracies
                     accuracy_shoes += torch.sum(pred_labels_shoes == labels_shoes)
                     accuracy_tops += torch.sum(pred_labels_tops == labels_tops)
                     accuracy_acc += torch.sum(pred_labels_acc == labels_acc)
                     accuracy_bottoms += torch.sum(pred_labels_bottoms == labels_bottoms)
+                    accuracy_MLM += torch.sum(pred_masked == masked_IDs)
 
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)  # compute the average loss of the epoch
                 # compute the average accuracy of the items classification task of the epoch
@@ -299,8 +319,9 @@ class umBERT2_trainer():
                 epoch_accuracy_tops = accuracy_tops / len(dataloaders[phase].dataset)
                 epoch_accuracy_acc = accuracy_acc / len(dataloaders[phase].dataset)
                 epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
+
                 # compute the average accuracy of the MLM task of the epoch
-                epoch_accuracy_MLM = (epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+                epoch_accuracy_MLM = accuracy_MLM / len(dataloaders[phase].dataset)
 
                 if run is not None:
                     run[f"{phase}/epoch/loss"].append(epoch_loss)
@@ -330,17 +351,15 @@ class umBERT2_trainer():
                             epoch_loss))
                         print('Validation accuracy MLM of the saved model: {:.6f}'.format(epoch_accuracy_MLM))
                         # save a checkpoint dictionary containing the model state_dict
-                        checkpoint = {'d_model': self.model.d_model, 'catalogue_sizes': self.model.catalogue_sizes,
+                        checkpoint = {'d_model': self.model.d_model,
                                       'num_encoders': self.model.num_encoders,
-                                      'num_heads': self.model.num_heads, 'dropout': self.model.dropout,
+                                      'num_heads': self.model.num_heads,
+                                      'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-                        # datetime object containing current date and time
-                        now = datetime.now()
-                        # dd/mm/YY H:M:S
-                        dt_string = now.strftime("%d/%m/%Y%H:%M:%S")
+
                         torch.save(checkpoint,
-                                   f'../models/umBERT_finetuned_BERT2_{dt_string}.pth')  # save the checkpoint dictionary to a file
+                                   f'../models/umBERT2_finetuned_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_MLM = epoch_accuracy_MLM
         plt.plot(train_loss, label='train')
@@ -355,7 +374,7 @@ class umBERT2_trainer():
         plt.show()
         return best_valid_acc_MLM
 
-    def evaluate_fine_tuning(self,dataloaders):
+    def evaluate_fine_tuning(self, dataloaders):
         """
         Evaluate the model on the test set
         :param dataloaders: dictionary containing the dataloaders for the train, validation and test sets

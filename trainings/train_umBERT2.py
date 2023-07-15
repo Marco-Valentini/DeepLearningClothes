@@ -22,14 +22,7 @@ from utility.get_category_labels import get_category_labels
 from utility.masking_input import masking_input
 from utility.umBERT2_trainer import umBERT2_trainer
 import json
-from constants import get_special_embeddings
-
-# define the run for monitoring the training on Neptune dashboard
-run = neptune.init_run(
-    project="marcopaolodeeplearning/DeepLearningClothes",
-    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==",
-    name="pre-training umBERT2",
-)  # your credentials
+from constants import get_special_embeddings, API_TOKEN
 
 # set the seed for reproducibility
 random.seed(42)
@@ -38,33 +31,48 @@ torch.manual_seed(42)
 torch.use_deterministic_algorithms(True)
 
 # import the MASK and CLS tokens
-dim_embeddings = 64
+dim_embeddings = 128
 CLS, MASK = get_special_embeddings(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+# define the run for monitoring the training on Neptune dashboard
+run = neptune.init_run(
+    project="marcopaolodeeplearning/DeepLearningOutfitCompetion",
+    api_token=API_TOKEN,  # your credentials
+    name="pre training umBERT2",
+    tags=["umBERT2", "pre-training"],
+)  # your credentials
 
 # use GPU if available
 device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
 print('Device used: ', device)
 
 # read the dataset
-df = pd.read_csv('../reduced_compatibility.csv')
+df = pd.read_csv('../reduced_data/reduced_compatibility.csv')
 
 # split the dataset in train, valid and test set (80%, 10%, 10%) in a stratified way on the compatibility column
 compatibility = df['compatibility']
 df = df.drop(columns=['compatibility'])
 df_train, df_test, compatibility_train, compatibility_test = train_test_split(df, compatibility, test_size=0.2,
-                                                                              stratify=compatibility,random_state=42,shuffle=True)
+                                                                              stratify=compatibility,
+                                                                              random_state=42,
+                                                                              shuffle=True)
 df_valid, df_test, compatibility_valid, compatibility_test = train_test_split(df_test, compatibility_test,
                                                                               test_size=0.5,
-                                                                              stratify=compatibility_test,random_state=42,shuffle=True)
-
+                                                                              stratify=compatibility_test,
+                                                                              random_state=42,
+                                                                              shuffle=True)
+# reset the index of the dataframes
+df_train = df_train.reset_index(drop=True)
+df_valid = df_valid.reset_index(drop=True)
+df_test = df_test.reset_index(drop=True)
 with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
 
-with open('../reduced_data/embeddings_128.npy', 'rb') as f:
+with open(f'../reduced_data/embeddings_{dim_embeddings}.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # create the tensor dataset for the training set (which contains the CLS embedding)
@@ -89,10 +97,9 @@ IDs_train = torch.tensor(df_train.values)
 # concatenate the compatibility labels and the IDs tensors
 labels_train = torch.cat((compatibility_train.unsqueeze(1), IDs_train), dim=1)
 # create the Tensor Dataset for the training set
+training_set = training_set.transpose(0, 1)  # transpose the tensor to have the batch dimension first
 train_dataset = torch.utils.data.TensorDataset(training_set, labels_train)
 # create the DataLoader for the training set
-print('Creating the DataLoader for the training set...')
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=0)
 
 # repeat the same operations for the validation set
 print('Creating the tensor dataset for the validation set...')
@@ -105,12 +112,8 @@ validation_set = torch.cat((CLS_layer_valid.unsqueeze(0), validation_set), dim=0
 compatibility_valid = torch.tensor(compatibility_valid.values)
 IDs_valid = torch.tensor(df_valid.values)
 labels_valid = torch.cat((compatibility_valid.unsqueeze(1), IDs_valid), dim=1)
+validation_set = validation_set.transpose(0, 1)
 valid_dataset = torch.utils.data.TensorDataset(validation_set, labels_valid)
-print('Creating the DataLoader for the validation set...')
-valid_dataloader = DataLoader(valid_dataset, batch_size=32, shuffle=True, num_workers=0)
-
-# create the dictionary containing the dataloaders
-dataloaders = {'train': train_dataloader, 'val': valid_dataloader}
 
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
@@ -154,15 +157,16 @@ def objective(params):
     # define the trainer
     trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
                               device=device, n_epochs=params['n_epochs'])
-    # define dataloaders batch size
-    dataloaders['train'].batch_size = params['batch_size']
-    dataloaders['val'].batch_size = params['batch_size']
+    # define dataloaders
+    train_dataloader = DataLoader(train_dataset, batch_size=params['batch_size'], shuffle=True, num_workers=0)
+    valid_dataloader = DataLoader(valid_dataset, batch_size=params['batch_size'], shuffle=True, num_workers=0)
+    # create the dictionary containing the dataloaders
+    dataloaders = {'train': train_dataloader, 'val': valid_dataloader}
     # train the model
     loss = trainer.pre_train(dataloaders=dataloaders, run=None)
 
     # return the loss and the accuracy
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
-
 
 # optimize
 best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
@@ -191,7 +195,7 @@ model = umBERT2(d_model=dim_embeddings, num_encoders=params['num_encoders'],
 
 # use optimizer as suggested in the bayesian optimization
 optimizer = possible_optimizers[best['optimizer']](params=model.parameters(), lr=params['lr'],
-                                                    weight_decay=params['weight_decay'])
+                                                   weight_decay=params['weight_decay'])
 
 criterion = {'clf': CrossEntropyLoss(), 'recons': CosineEmbeddingLoss()}
 
@@ -199,8 +203,11 @@ print('Start pre-training the model')
 trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
                           device=device, n_epochs=params['n_epochs'])
 
-dataloaders['train'].batch_size = params['batch_size']
-dataloaders['val'].batch_size = params['batch_size']
+# define dataloaders
+train_dataloader = DataLoader(train_dataset, batch_size=params['batch_size'], shuffle=True, num_workers=0)
+valid_dataloader = DataLoader(valid_dataset, batch_size=params['batch_size'], shuffle=True, num_workers=0)
+# create the dictionary containing the dataloaders
+dataloaders = {'train': train_dataloader, 'val': valid_dataloader}
 
 trainer.pre_train(dataloaders=dataloaders, run=run)
 run.stop()  # stop the run on wandb website and save the results in the folder specified in the config file
@@ -208,25 +215,32 @@ print('Pre-training completed')
 
 # start the fine-tuning
 # define the run for monitoring the training on Neptune dashboard
+
 run = neptune.init_run(
-    project="marcopaolodeeplearning/DeepLearningClothes",
-    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==",
+    project="marcopaolodeeplearning/DeepLearningOutfitCompetion",
+    api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJjMTY5ZDBlZC1kY2QzLTQzNDYtYjc0OS02YzkzM2M3YjIyOTAifQ==", # your credentials
     name="fine-tuning umBERT2",
+    tags=["umBERT2", "fine-tuning"],
 )  # your credentials
+
 print('Start fine-tuning the model')
 # load the fine-tuning dataset
 df_fine_tuning = pd.read_csv('../reduced_data/unified_dataset_MLM.csv')
 
 # split the dataset into training, validation set and test set
-df_fine_tuning_train, df_fine_tuning_test= train_test_split(df_fine_tuning, test_size=0.2, random_state=42, shuffle=True)
-df_valid, df_test = train_test_split(df_test, test_size=0.5, random_state=42, shuffle=True)
+df_fine_tuning_train, df_fine_tuning_test = train_test_split(df_fine_tuning, test_size=0.2, random_state=42, shuffle=True)
+df_fine_tuning_valid, df_fine_tuning_test = train_test_split(df_fine_tuning_test, test_size=0.5, random_state=42, shuffle=True)
+# reset the indexes
+df_fine_tuning_train = df_fine_tuning_train.reset_index(drop=True)
+df_fine_tuning_valid = df_fine_tuning_valid.reset_index(drop=True)
+df_fine_tuning_test = df_fine_tuning_test.reset_index(drop=True)
 
 # create the tensor dataset for the training set
 print('Creating the tensor dataset for the training set...')
 FT_training_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_train, embeddings, IDs, CLS)
 print('Tensor dataset for the training set created!')
 # remove the CLS
-FT_training_set = FT_training_set[1:,:,:]
+FT_training_set = FT_training_set[1:, :, :]
 print("Scaling the training set using the z-score...")
 FT_mean = FT_training_set.mean(dim=0).mean(dim=0)
 FT_std = FT_training_set.std(dim=0).std(dim=0)
@@ -234,60 +248,55 @@ torch.save(FT_mean, '../models/FT_mean.pth')
 torch.save(FT_std, '../models/FT_std.pth')
 FT_training_set = (FT_training_set - FT_mean) / FT_std
 print("masking the items...")
-train_masked_outfit, train_masked_indexes, train_masked_IDs = mask_one_item_per_time(FT_training_set,df_fine_tuning_train,MASK,input_contains_CLS=False, device=device, output_in_batch_first=True)
+train_masked_outfit, train_masked_indexes, train_masked_IDs = mask_one_item_per_time(FT_training_set,
+                                                                                     df_fine_tuning_train,
+                                                                                     MASK,
+                                                                                     input_contains_CLS=False,
+                                                                                     device=device,
+                                                                                     output_in_batch_first=True)
 train_masked_outfit = torch.Tensor(train_masked_outfit)
-train_masked_indexes = torch.Tensor(train_masked_indexes)
-train_masked_IDs = torch.Tensor(train_masked_IDs)
+train_masked_indexes = torch.Tensor(train_masked_indexes).unsqueeze(1)
+train_masked_IDs = torch.Tensor(train_masked_IDs).unsqueeze(1)
 print("items masked!")
 # labels are the masked items IDs
+# repeat each element of df_fine_tuning_train 4 times
+df_fine_tuning_train = pd.DataFrame(np.repeat(df_fine_tuning_train.values, 4, axis=0), columns=df_fine_tuning_train.columns)
+
 FT_IDs_train = torch.Tensor(df_fine_tuning_train.values)
-FT_labels_train = torch.cat((FT_IDs_train,train_masked_indexes,train_masked_IDs)) # TODO capire come gestire queste shape
-FT_training_dataset = torch.utils.data.TensorDataset(FT_training_set, FT_labels_train)
+print(f'shape FT_IDs_train: {FT_IDs_train.shape}')
+print(f'shape train_masked_indexes: {train_masked_indexes.shape}')
+print(f'shape train_masked_IDs: {train_masked_IDs.shape}')
+FT_labels_train = torch.cat((FT_IDs_train, train_masked_indexes, train_masked_IDs), dim=1)
+FT_training_dataset = torch.utils.data.TensorDataset(train_masked_outfit, FT_labels_train)
 print("dataset created!")
-# create the data loader
-FT_training_dataloader = torch.utils.data.DataLoader(FT_training_dataset, batch_size=32, shuffle=True, num_workers=0)
+
 # repeat the same operations for validation set
 print('Creating the tensor dataset for the validation set...')
-FT_valid_set = create_tensor_dataset_for_BC_from_dataframe(df_valid, embeddings, IDs, CLS)
+FT_valid_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_valid, embeddings, IDs, CLS)
 print('Tensor dataset for the validation set created!')
 # remove the CLS
-FT_valid_set = FT_valid_set[1:,:,:]
+FT_valid_set = FT_valid_set[1:, :, :]
 print("Scaling the validation set using the z-score...")
 FT_valid_set = (FT_valid_set - FT_mean) / FT_std
 print("masking the items...")
-valid_masked_outfit, valid_masked_indexes, valid_masked_IDs = mask_one_item_per_time(FT_valid_set,df_valid,MASK,input_contains_CLS=False, device=device, output_in_batch_first=True)
+valid_masked_outfit, valid_masked_indexes, valid_masked_IDs = mask_one_item_per_time(FT_valid_set,
+                                                                                     df_fine_tuning_valid,
+                                                                                     MASK,
+                                                                                     input_contains_CLS=False,
+                                                                                     device=device,
+                                                                                     output_in_batch_first=True)
+
 valid_masked_outfit = torch.Tensor(valid_masked_outfit)
-valid_masked_indexes = torch.Tensor(valid_masked_indexes)
-valid_masked_IDs = torch.Tensor(valid_masked_IDs)
+valid_masked_indexes = torch.Tensor(valid_masked_indexes).unsqueeze(1)
+valid_masked_IDs = torch.Tensor(valid_masked_IDs).unsqueeze(1)
 print("items masked!")
 # labels are the masked items IDs
-FT_IDs_valid = torch.Tensor(df_valid.values)
-FT_labels_valid = torch.cat((FT_IDs_valid,valid_masked_indexes,valid_masked_IDs)) # TODO capire come gestire queste shape
-FT_valid_dataset = torch.utils.data.TensorDataset(FT_valid_set, FT_labels_valid)
+# repeat each element of df_fine_tuning_train 4 times
+df_fine_tuning_valid = pd.DataFrame(np.repeat(df_fine_tuning_valid.values, 4, axis=0), columns=df_fine_tuning_valid.columns)
+FT_IDs_valid = torch.Tensor(df_fine_tuning_valid.values)
+FT_labels_valid = torch.cat((FT_IDs_valid, valid_masked_indexes, valid_masked_IDs), dim=1)
+FT_valid_dataset = torch.utils.data.TensorDataset(valid_masked_outfit, FT_labels_valid)
 print("dataset created!")
-# create the data loader
-FT_valid_dataloader = torch.utils.data.DataLoader(FT_valid_dataset, batch_size=32, shuffle=True, num_workers=0)
-# repeat the same operations for test set
-print('Creating the tensor dataset for the test set...')
-FT_test_set = create_tensor_dataset_for_BC_from_dataframe(df_test, embeddings, IDs, CLS)
-print('Tensor dataset for the test set created!')
-# remove the CLS
-FT_test_set = FT_test_set[1:,:,:]
-print("Scaling the test set using the z-score...")
-FT_test_set = (FT_test_set - FT_mean) / FT_std
-print("masking the items...")
-test_masked_outfit, test_masked_indexes, test_masked_IDs = mask_one_item_per_time(FT_test_set,df_test,MASK,input_contains_CLS=False, device=device, output_in_batch_first=True)
-test_masked_outfit = torch.Tensor(test_masked_outfit)
-test_masked_indexes = torch.Tensor(test_masked_indexes)
-test_masked_IDs = torch.Tensor(test_masked_IDs)
-print("items masked!")
-# labels are the masked items IDs
-FT_IDs_test = torch.Tensor(df_test.values)
-FT_labels_test = torch.cat((FT_IDs_test,test_masked_indexes,test_masked_IDs)) # TODO capire come gestire queste shape
-FT_test_dataset = torch.utils.data.TensorDataset(FT_test_set, FT_labels_test)
-print("dataset created!")
-# create the data loader
-FT_test_dataloader = torch.utils.data.DataLoader(FT_test_dataset, batch_size=32, shuffle=True, num_workers=0)
 
 # apply baesyan search to find the best hyperparameters combination
 ### hyperparameters tuning ###
@@ -307,10 +316,9 @@ space = {
     'optimizer': hp.choice('optimizer', possible_optimizers)
 }
 
-
 # call the fine-tune training
 # define the objective function
-def objective_fine_tuning(params,model):
+def objective_fine_tuning(params):
     # define the optimizer
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 
@@ -319,9 +327,15 @@ def objective_fine_tuning(params,model):
     # define the trainer
     trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
                               device=device, n_epochs=params['n_epochs'])
-    dataloaders.batch_size = params['batch_size']
+    # create the data loader
+    FT_training_dataloader = torch.utils.data.DataLoader(FT_training_dataset, batch_size=params['batch_size'],
+                                                         shuffle=True, num_workers=0)
+    FT_valid_dataloader = torch.utils.data.DataLoader(FT_valid_dataset, batch_size=params['batch_size'],
+                                                      shuffle=True, num_workers=0)
+    FT_data_loaders = {'train': FT_training_dataloader, 'val': FT_valid_dataloader}
+
     # train the model
-    accuracy = trainer.fine_tuning(dataloaders=dataloaders, run=None)
+    accuracy = trainer.fine_tuning(dataloaders=FT_data_loaders, run=None)
 
     loss = 1 - accuracy
 
@@ -352,14 +366,45 @@ optimizer = possible_optimizers[best['optimizer']](params=model.parameters(), lr
 
 criterion = {'recons': CosineEmbeddingLoss()}
 
-print('Start fine-training the model')
+print('Start fine-tuning the model')
 trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
                           device=device, n_epochs=params['n_epochs'])
 
-dataloaders['train'].batch_size = params['batch_size']
-dataloaders['val'].batch_size = params['batch_size']
+# create the data loader
+FT_training_dataloader = torch.utils.data.DataLoader(FT_training_dataset, batch_size=params['batch_size'],
+                                                     shuffle=True, num_workers=0)
+FT_valid_dataloader = torch.utils.data.DataLoader(FT_valid_dataset, batch_size=params['batch_size'],
+                                                  shuffle=True, num_workers=0)
+FT_data_loaders = {'train': FT_training_dataloader, 'val': FT_valid_dataloader}
 
-trainer.fine_tuning(dataloaders=dataloaders, run=run)
+trainer.fine_tuning(dataloaders=FT_data_loaders, run=run)
 run.stop()  # stop the run on wandb website and save the results in the folder specified in the config file
-print('Pre-training completed')
+print('Fine-tuning completed')
 
+# test the model
+print('Start testing the model...')
+# repeat the same operations for test set
+print('Creating the tensor dataset for the test set...')
+FT_test_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_test, embeddings, IDs, CLS)
+print('Tensor dataset for the test set created!')
+# remove the CLS
+FT_test_set = FT_test_set[1:, :, :]
+print("Scaling the test set using the z-score...")
+FT_test_set = (FT_test_set - FT_mean) / FT_std
+print("masking the items...")
+test_masked_outfit, test_masked_indexes, test_masked_IDs = mask_one_item_per_time(FT_test_set,
+                                                                                  df_fine_tuning_test,
+                                                                                  MASK,
+                                                                                  input_contains_CLS=False,
+                                                                                  device=device,
+                                                                                  output_in_batch_first=True)
+test_masked_outfit = torch.Tensor(test_masked_outfit)
+test_masked_indexes = torch.Tensor(test_masked_indexes)
+test_masked_IDs = torch.Tensor(test_masked_IDs)
+print("items masked!")
+# labels are the masked items IDs
+FT_IDs_test = torch.Tensor(df_fine_tuning_test.values)
+FT_labels_test = torch.cat((FT_IDs_test, test_masked_indexes, test_masked_IDs))  # TODO capire come gestire queste shape
+FT_test_dataset = torch.utils.data.TensorDataset(FT_test_set, FT_labels_test)
+print("dataset created!")
+# create the data loader

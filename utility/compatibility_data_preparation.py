@@ -116,6 +116,7 @@ def count_categories(column):
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
 for fold in ['nondisjoint','disjoint']:
     for data_set in ['train', 'test', 'valid']:  # for each data set apply the following operations
+        print(f'Processing {data_set} of {fold}...')
         # read the data from the <train, test, valid>.txt file
         path = f'../dataset/{fold}/compatibility_{data_set}.txt'
         with open(path) as file:
@@ -146,18 +147,22 @@ for fold in ['nondisjoint','disjoint']:
         df.reset_index(inplace=True, drop=True)
 
         # substitute the set_id_index with the item id which corresponds to
+        print('Substituting the set_id_index with the item id which corresponds to...')
         df = df.applymap(retrieve_item)
 
         # check that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)
+        print('Checking that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)...')
         if df['item_1'].isna().sum() == 0 and df['item_2'].isna().sum() == 0 and df['item_3'].isna().sum() == 0 and df[
             'item_4'].isna().sum() == 0:
             print('OK - no outfit with less than 4 items in the DataFrame')
 
         # set to None all the items not belonging to the allowed categories
+        print('Setting to None all the items not belonging to the allowed categories...')
         df = df.applymap(is_in_categories)  # apply this 'is_in_category filter'
         df.reset_index(inplace=True, drop=True)
 
         # remove the no more valid outfits
+        print('Removing the no more valid outfits...')
         indexes_to_drop = []
         for i in range(df.shape[0]):
             row = df.loc[i]
@@ -169,8 +174,10 @@ for fold in ['nondisjoint','disjoint']:
         df.reset_index(inplace=True, drop=True)
 
         # remove the None and compact
+        print('Removing the None and compacting the DataFrame...')
         df = remove_and_compact(df)
         # check if the classes are balanced or not
+        print('Checking if the classes are balanced or not...')
         value_counts = df['compatibility'].value_counts()
         print(f"Proportion of negative/positive samples {value_counts}")
         # check the number of items for each column
