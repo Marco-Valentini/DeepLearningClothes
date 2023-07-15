@@ -9,15 +9,22 @@ this python script takes images from a catalogue and move them in the folder 'da
 '''
 root_dir = '../dataset/images/'
 
-# organise the train set in folders
-for category in ['shoes', 'tops', 'bottoms', 'accessories']:
-    csv_file_path = f'../reduced_data/reduced_catalogue_{category}.csv'
-    data = pd.read_csv(csv_file_path)
-    images = list(data.loc[:, 'ID'].values)
-    for idx in range(len(images)):
-        print(f"Saving image {idx}, total {idx/len(images)}")
-        image_name = str(images[idx]) + '.jpg'
-        image_path = os.path.join(root_dir, image_name)
-        image = Image.open(image_path)
-        new_image_path = f'../dataset_catalogue_{category}/{image_name}'
-        image.save(new_image_path)
+reduced_compatibility = pd.read_csv('../reduced_data/reduced_compatibility.csv')  # this dataset cotains both compatible and incompatible outfits
+reduced_compatibility.drop(columns='compatibility', inplace=True)
+unified_dataset_MLM = pd.read_csv('../reduced_data/unified_dataset_MLM.csv')  # this dataset contains only compatible outfits
+
+# create a list of all the ids in the reduced_compatibility and unified_dataset_MLM datasets
+images = []
+for outfit in reduced_compatibility.values:
+    images.extend(list(outfit))
+for outfit in unified_dataset_MLM.values:
+    images.extend(list(outfit))
+images = list(set(images))
+
+for idx in range(len(images)):
+    print(f"Saving image {idx}, total {idx/len(images)}")
+    image_name = str(images[idx]) + '.jpg'
+    image_path = os.path.join(root_dir, image_name)
+    image = Image.open(image_path)
+    new_image_path = f'../dataset_catalogue/{image_name}'
+    image.save(new_image_path)
