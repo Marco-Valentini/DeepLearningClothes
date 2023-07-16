@@ -29,9 +29,10 @@ random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
 torch.use_deterministic_algorithms(True)
+SEED=42
 
 # import the MASK and CLS tokens
-dim_embeddings = 128
+dim_embeddings = 64
 CLS, MASK = get_special_embeddings(dim_embeddings)
 
 # set the working directory to the path of the file
@@ -72,7 +73,7 @@ with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
 
-with open(f'../reduced_data/embeddings_{dim_embeddings}.npy', 'rb') as f:
+with open(f'../reduced_data/embeddings_{str(dim_embeddings)}.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # create the tensor dataset for the training set (which contains the CLS embedding)
@@ -120,11 +121,11 @@ print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
-possible_lr = [1e-5, 1e-4, 1e-3, 1e-2]
+possible_lr = [1e-5, 1e-4, 1e-3, 1e-2,1e-1]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [i for i in range(1, 12)]
 possible_n_epochs = [20, 50, 100]
-possible_batch_size = [16, 32, 64]
+possible_batch_size = [32, 64, 256, 512]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
@@ -169,9 +170,8 @@ def objective(params):
     # return the loss and the accuracy
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 
-
 # optimize
-best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
+best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials, rstate=np.random.default_rng(SEED), verbose=True)
 
 # optimal model
 print('hyperparameters tuning completed!')
@@ -211,9 +211,9 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=params['batch_size'], sh
 # create the dictionary containing the dataloaders
 dataloaders = {'train': train_dataloader, 'val': valid_dataloader}
 
-trainer.pre_train(dataloaders=dataloaders, run=run)
+loss_pre_train = trainer.pre_train(dataloaders=dataloaders, run=run)
 run.stop()  # stop the run on wandb website and save the results in the folder specified in the config file
-print('Pre-training completed')
+print(f'Pre-training completed with loss {loss_pre_train}')
 
 # start the fine-tuning
 # define the run for monitoring the training on Neptune dashboard
@@ -225,7 +225,7 @@ run = neptune.init_run(
     tags=["umBERT2", "fine-tuning"],
 )  # your credentials
 
-print('Start fine-tuning the model')
+print('Starting the search for fine-tuning the model...')
 # load the fine-tuning dataset
 df_fine_tuning = pd.read_csv('../reduced_data/unified_dataset_MLM.csv')
 
@@ -242,6 +242,7 @@ print('Creating the tensor dataset for the training set...')
 FT_training_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_train, embeddings, IDs, CLS)
 print('Tensor dataset for the training set created!')
 # remove the CLS
+CLS_layer_train_FT = FT_training_set[0, :, :]
 FT_training_set = FT_training_set[1:, :, :]
 print("Scaling the training set using the z-score...")
 FT_mean = FT_training_set.mean(dim=0).mean(dim=0)
@@ -249,11 +250,13 @@ FT_std = FT_training_set.std(dim=0).std(dim=0)
 torch.save(FT_mean, '../models/FT_mean.pth')
 torch.save(FT_std, '../models/FT_std.pth')
 FT_training_set = (FT_training_set - FT_mean) / FT_std
+# re-attach the CLS
+FT_training_set = torch.cat((CLS_layer_train_FT.unsqueeze(0), FT_training_set), dim=0)
 print("masking the items...")
 train_masked_outfit, train_masked_indexes, train_masked_IDs = mask_one_item_per_time(FT_training_set,
                                                                                      df_fine_tuning_train,
                                                                                      MASK,
-                                                                                     input_contains_CLS=False,
+                                                                                     input_contains_CLS=True,
                                                                                      device=device,
                                                                                      output_in_batch_first=True)
 train_masked_outfit = torch.Tensor(train_masked_outfit)
@@ -277,14 +280,17 @@ print('Creating the tensor dataset for the validation set...')
 FT_valid_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_valid, embeddings, IDs, CLS)
 print('Tensor dataset for the validation set created!')
 # remove the CLS
+CLS_layer_valid_FT = FT_valid_set[0, :, :]
 FT_valid_set = FT_valid_set[1:, :, :]
 print("Scaling the validation set using the z-score...")
 FT_valid_set = (FT_valid_set - FT_mean) / FT_std
+# re-attach the CLS
+FT_valid_set = torch.cat((CLS_layer_valid_FT.unsqueeze(0), FT_valid_set), dim=0)
 print("masking the items...")
 valid_masked_outfit, valid_masked_indexes, valid_masked_IDs = mask_one_item_per_time(FT_valid_set,
                                                                                      df_fine_tuning_valid,
                                                                                      MASK,
-                                                                                     input_contains_CLS=False,
+                                                                                     input_contains_CLS=True,
                                                                                      device=device,
                                                                                      output_in_batch_first=True)
 
@@ -302,13 +308,13 @@ print("dataset created!")
 
 # apply baesyan search to find the best hyperparameters combination
 ### hyperparameters tuning ###
-print('Starting hyperparameters tuning...')
+print('Starting hyperparameters tuning with baesyan search for fine-tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
-possible_lr = [1e-5, 1e-4, 1e-3, 1e-2]
+possible_lr = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 possible_n_epochs = [10, 20, 50]
-possible_batch_size = [16, 32, 64]
+possible_batch_size = [32, 64, 256, 512]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
@@ -318,10 +324,17 @@ space = {
     'weight_decay': hp.uniform('weight_decay', 0, 0.1),
     'optimizer': hp.choice('optimizer', possible_optimizers)
 }
+# define the algorithm
+tpe_algorithm_FT = tpe.suggest
+
+# define the trials object
+baeyes_trials_FT = Trials()
 
 # call the fine-tune training
 # define the objective function
 def objective_fine_tuning(params):
+    # print the hyperparameters
+    print(f"Trainig with params: {params}")
     # define the optimizer
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 
@@ -347,29 +360,29 @@ def objective_fine_tuning(params):
 
 
 # optimize
-best = fmin(fn=objective_fine_tuning, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
+best_fine_tuning = fmin(fn=objective_fine_tuning, space=space, algo=tpe_algorithm_FT, max_evals=max_evals, trials=baeyes_trials_FT, rstate=np.random.default_rng(SEED), verbose=True)
 
 # optimal model
 print('hyperparameters FINE tuning completed!')
-print(f'the best hyperparameters combination in fine tuning is: {best}')
+print(f'the best hyperparameters combination in fine tuning is: {best_fine_tuning}')
 
 # define the parameters
 params = {
-    'lr': best['lr'],
-    'batch_size': possible_batch_size[best['batch_size']],
-    'n_epochs': possible_n_epochs[best['n_epochs']],
-    'weight_decay': best['weight_decay']
+    'lr': best_fine_tuning['lr'],
+    'batch_size': possible_batch_size[best_fine_tuning['batch_size']],
+    'n_epochs': possible_n_epochs[best_fine_tuning['n_epochs']],
+    'weight_decay': best_fine_tuning['weight_decay']
 }
 
 run["parameters"] = params
 
 # use optimizer as suggested in the bayesian optimization
-optimizer = possible_optimizers[best['optimizer']](params=model.parameters(), lr=params['lr'],
+optimizer = possible_optimizers[best_fine_tuning['optimizer']](params=model.parameters(), lr=params['lr'],
                                                 weight_decay=params['weight_decay'])
 
 criterion = {'recons': CosineEmbeddingLoss()}
 
-print('Start fine-tuning the model')
+print('Starting fine-tuning the model')
 trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
                           device=device, n_epochs=params['n_epochs'])
 
@@ -391,20 +404,25 @@ print('Creating the tensor dataset for the test set...')
 FT_test_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_test, embeddings, IDs, CLS)
 print('Tensor dataset for the test set created!')
 # remove the CLS
+CLS_layer_test_FT = FT_test_set[0, :, :]
 FT_test_set = FT_test_set[1:, :, :]
 print("Scaling the test set using the z-score...")
 FT_test_set = (FT_test_set - FT_mean) / FT_std
+# re-attach the CLS
+FT_test_set = torch.cat((CLS_layer_test_FT.unsqueeze(0), FT_test_set), dim=0)
 print("masking the items...")
 test_masked_outfit, test_masked_indexes, test_masked_IDs = mask_one_item_per_time(FT_test_set,
                                                                                   df_fine_tuning_test,
                                                                                   MASK,
-                                                                                  input_contains_CLS=False,
+                                                                                  input_contains_CLS=True,
                                                                                   device=device,
                                                                                   output_in_batch_first=True)
 test_masked_outfit = torch.Tensor(test_masked_outfit)
 test_masked_indexes = torch.Tensor(test_masked_indexes)
 test_masked_IDs = torch.Tensor(test_masked_IDs)
 print("items masked!")
+# repeat the labels row
+df_fine_tuning_test = pd.DataFrame(np.repeat(df_fine_tuning_test.values, 4, axis=0), columns=df_fine_tuning_test.columns)
 # labels are the masked items IDs
 FT_IDs_test = torch.Tensor(df_fine_tuning_test.values)
 FT_labels_test = torch.cat((FT_IDs_test, test_masked_indexes, test_masked_IDs))  # TODO capire come gestire queste shape

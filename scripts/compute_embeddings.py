@@ -14,7 +14,7 @@ from torchvision.transforms import transforms
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
-dim_embeddings = 128
+dim_embeddings = 64
 # load thecheckpoint
 checkpoint = torch.load(f'../models/finetuned_fashion_resnet18_{dim_embeddings}.pth')
 # load the model finetuned_fashion_resnet18_512.pth

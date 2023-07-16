@@ -45,6 +45,7 @@ class umBERT2_trainer():
         val_acc_decoding = []  # keep track of the accuracy of the validation phase on the MLM classification task
 
         valid_loss_min = np.Inf  # track change in validation loss
+        early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
         self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
@@ -172,6 +173,11 @@ class umBERT2_trainer():
                         torch.save(checkpoint,
                                    f'../models/umBERT2_pre_trained_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
+                    else:
+                        early_stopping += 1
+            if early_stopping == 10:
+                print('Early stopping the training')
+                break
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
@@ -195,7 +201,7 @@ class umBERT2_trainer():
         loss_tops = self.criterion['recons'](dict_outputs['tops'], dict_input['tops'], target)
         loss_acc = self.criterion['recons'](dict_outputs['accessories'], dict_input['accessories'], target)
         loss_bottoms = self.criterion['recons'](dict_outputs['bottoms'], dict_input['bottoms'], target)
-        if 'clf' in dict_outputs.keys():
+        if 'clf' in dict_input.keys():
             loss_clf = self.criterion['clf'](dict_outputs['clf'], dict_input['clf'].float())
             loss = loss_shoes + loss_tops + loss_acc + loss_bottoms + loss_clf
         else:
@@ -227,6 +233,7 @@ class umBERT2_trainer():
         val_acc_MLM = []  # keep track of the accuracy of the validation phase on the MLM classification task
 
         valid_loss_min = np.Inf  # track change in validation loss
+        early_stopping = 0  # early stopping counter
         best_valid_acc_MLM = 0.0  # track change in validation accuracy
         self.model = self.model.to(self.device)  # set the model to run on the device
 
@@ -265,10 +272,10 @@ class umBERT2_trainer():
 
                     # these are the embeddings of the items in the catalogue
                     dict_inputs = {
-                        'shoes': inputs[:, 0, :],
-                        'tops': inputs[:, 1, :],
-                        'accessories': inputs[:, 2, :],
-                        'bottoms': inputs[:, 3, :]
+                        'shoes': inputs[:, 1, :],
+                        'tops': inputs[:, 2, :],
+                        'accessories': inputs[:, 3, :],
+                        'bottoms': inputs[:, 4, :]
                     }
 
                     self.optimizer.zero_grad()  # zero the gradients
@@ -296,13 +303,13 @@ class umBERT2_trainer():
 
                     pred_masked = []
                     for i in range(len(masked_indexes)):
-                        if masked_indexes[i] == 0:  # shoes
+                        if masked_indexes[i] == 1:  # shoes
                             pred_masked.append(pred_labels_shoes[i])
-                        elif masked_indexes[i] == 1:  # tops
+                        elif masked_indexes[i] == 2:  # tops
                             pred_masked.append(pred_labels_tops[i])
-                        elif masked_indexes[i] == 2:  # accessories
+                        elif masked_indexes[i] == 3:  # accessories
                             pred_masked.append(pred_labels_acc[i])
-                        elif masked_indexes[i] == 3:  # bottoms
+                        elif masked_indexes[i] == 4:  # bottoms
                             pred_masked.append(pred_labels_bottoms[i])
                     pred_masked = torch.Tensor(pred_masked).to(self.device)
 
@@ -362,15 +369,20 @@ class umBERT2_trainer():
                                    f'../models/umBERT2_finetuned_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_MLM = epoch_accuracy_MLM
+                    else:
+                        early_stopping += 1
+            if early_stopping == 7:
+                print('Early stopping the training')
+                break
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
-        plt.title('Loss training')
+        plt.title('Loss fine-tuning')
         plt.show()
         plt.plot(train_acc_MLM, label='train')
         plt.plot(val_acc_MLM, label='val')
         plt.legend()
-        plt.title('Accuracy (MLM) training')
+        plt.title('Accuracy (MLM) fine-tuning')
         plt.show()
         return best_valid_acc_MLM
 

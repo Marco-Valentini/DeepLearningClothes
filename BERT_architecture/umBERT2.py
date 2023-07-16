@@ -72,10 +72,11 @@ class umBERT2(nn.Module):
         # compute the logits for each item in the outfit
         output = self.encoder_stack(outfit)  # compute the output of the encoders stack (forward pass)
         # compute the logits for each item in the outfit
-        recons_embeddings_shoes = self.ffnn_shoes(output[:, 0, :])  # compute the logits for the first item in the outfit
-        recons_embeddings_tops = self.ffnn_tops(output[:, 1, :])  # compute the logits for the second item in the outfit
-        recons_embeddings_acc = self.ffnn_acc(output[:, 2, :])  # compute the logits for the third item in the outfit
-        recons_embeddings_bottoms = self.ffnn_bottoms(output[:, 3, :])  # compute the logits for the fourth item in the outfit
+        # we don't care about clf logits in position 0
+        recons_embeddings_shoes = self.ffnn_shoes(output[:, 1, :])  # compute the logits for the first item in the outfit
+        recons_embeddings_tops = self.ffnn_tops(output[:, 2, :])  # compute the logits for the second item in the outfit
+        recons_embeddings_acc = self.ffnn_acc(output[:, 3, :])  # compute the logits for the third item in the outfit
+        recons_embeddings_bottoms = self.ffnn_bottoms(output[:, 4, :])  # compute the logits for the fourth item in the outfit
 
         return {'shoes': recons_embeddings_shoes,
                 'tops': recons_embeddings_tops,
