@@ -120,6 +120,7 @@ print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
+possible_lr = [1e-5, 1e-4, 1e-3, 1e-2]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [i for i in range(1, 12)]
 possible_n_epochs = [20, 50, 100]
@@ -127,7 +128,7 @@ possible_batch_size = [16, 32, 64]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
-    'lr': hp.uniform('lr', 1e-5, 1e-2),
+    'lr': hp.choice('lr', possible_lr),
     'batch_size': hp.choice('batch_size', possible_batch_size),
     'n_epochs': hp.choice('n_epochs', possible_n_epochs),
     'dropout': hp.uniform('dropout', 0, 0.5),
@@ -167,6 +168,7 @@ def objective(params):
 
     # return the loss and the accuracy
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
+
 
 # optimize
 best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
@@ -304,12 +306,13 @@ print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
+possible_lr = [1e-5, 1e-4, 1e-3, 1e-2]
 possible_n_epochs = [10, 20, 50]
 possible_batch_size = [16, 32, 64]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
-    'lr': hp.uniform('lr', 1e-5, 1e-2),
+    'lr': hp.choice('lr', possible_lr),
     'batch_size': hp.choice('batch_size', possible_batch_size),
     'n_epochs': hp.choice('n_epochs', possible_n_epochs),
     'weight_decay': hp.uniform('weight_decay', 0, 0.1),
