@@ -8,7 +8,7 @@ import os
 from BERT_architecture.umBERT import umBERT
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.dataset_augmentation import mask_one_item_per_time
-from constants import get_special_embeddings  # CLS is the embedding of the CLS token, MASK is the embedding of the MASK token
+from constants import generate_special_embeddings_randomly  # CLS is the embedding of the CLS token, MASK is the embedding of the MASK token
 from utility.display import display_outfits, display_predictions
 from utility.umBERT_trainer import umBERT_evaluator
 
@@ -19,7 +19,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
 
 # get the special embeddings
-CLS, MASK = get_special_embeddings()
+CLS, MASK = generate_special_embeddings_randomly()
 
 print(f'Working on device: {device}')
 

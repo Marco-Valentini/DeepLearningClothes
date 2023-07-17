@@ -17,7 +17,7 @@ from utility.dataset_augmentation import create_permutations_per_outfit
 import numpy as np
 from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss
 from utility.umBERT_trainer import umBERT_trainer
-from constants import get_special_embeddings
+from constants import generate_special_embeddings_randomly
 
 # set the seed for reproducibility
 random.seed(42)
@@ -27,7 +27,7 @@ torch.use_deterministic_algorithms(True)
 
 # import the MASK and CLS tokens
 dim_embeddings = 512
-CLS, MASK = get_special_embeddings(dim_embeddings)
+CLS, MASK = generate_special_embeddings_randomly(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

@@ -13,7 +13,7 @@ from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_da
 from utility.masking_input import masking_input
 from utility.umBERT_trainer import umBERT_evaluator
 from utility.dataset_augmentation import mask_one_item_per_time
-from constants import get_special_embeddings
+from constants import generate_special_embeddings_randomly
 
 # set the seed for reproducibility
 random.seed(42)
@@ -23,7 +23,7 @@ torch.use_deterministic_algorithms(True)
 
 # import the MASK and CLS tokens
 dim_embeddings = 512
-CLS, MASK = get_special_embeddings(dim_embeddings)
+CLS, MASK = generate_special_embeddings_randomly(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

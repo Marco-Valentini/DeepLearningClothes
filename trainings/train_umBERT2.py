@@ -19,7 +19,7 @@ from lion_pytorch import Lion
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.dataset_augmentation import mask_one_item_per_time
 from utility.umBERT2_trainer import umBERT2_trainer
-from constants import get_special_embeddings, API_TOKEN
+from constants import generate_special_embeddings_randomly, API_TOKEN
 
 # set the seed for reproducibility
 random.seed(42)
@@ -29,8 +29,8 @@ torch.use_deterministic_algorithms(True)
 SEED = 42
 
 # import the MASK and CLS tokens
-dim_embeddings = 64
-CLS, MASK = get_special_embeddings(dim_embeddings)
+dim_embeddings = 128
+CLS, MASK = generate_special_embeddings_randomly(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -146,6 +146,8 @@ baeyes_trials = Trials()
 
 # define the objective function
 def objective(params):
+    # print the hyperparameters
+    print(f"Trainig with params: {params}")
     # define the model
     model = umBERT2(d_model=dim_embeddings, num_encoders=params['num_encoders'],
                     num_heads=params['num_heads'], dropout=params['dropout'])
@@ -398,35 +400,35 @@ trainer.fine_tuning(dataloaders=FT_data_loaders, run=run)
 run.stop()  # stop the run on wandb website and save the results in the folder specified in the config file
 print('Fine-tuning completed')
 
-# test the model
-print('Start testing the model...')
-# repeat the same operations for test set
-print('Creating the tensor dataset for the test set...')
-FT_test_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_test, embeddings, IDs, CLS)
-print('Tensor dataset for the test set created!')
-# remove the CLS
-CLS_layer_test_FT = FT_test_set[0, :, :]
-FT_test_set = FT_test_set[1:, :, :]
-print("Scaling the test set using the z-score...")
-FT_test_set = (FT_test_set - FT_mean) / FT_std
-# re-attach the CLS
-FT_test_set = torch.cat((CLS_layer_test_FT.unsqueeze(0), FT_test_set), dim=0)
-print("masking the items...")
-test_masked_outfit, test_masked_indexes, test_masked_IDs = mask_one_item_per_time(FT_test_set,
-                                                                                  df_fine_tuning_test,
-                                                                                  MASK,
-                                                                                  input_contains_CLS=True,
-                                                                                  device=device,
-                                                                                  output_in_batch_first=True)
-test_masked_outfit = torch.Tensor(test_masked_outfit)
-test_masked_indexes = torch.Tensor(test_masked_indexes)
-test_masked_IDs = torch.Tensor(test_masked_IDs)
-print("items masked!")
-# repeat the labels row
-df_fine_tuning_test = pd.DataFrame(np.repeat(df_fine_tuning_test.values, 4, axis=0), columns=df_fine_tuning_test.columns)
-# labels are the masked items IDs
-FT_IDs_test = torch.Tensor(df_fine_tuning_test.values)
-FT_labels_test = torch.cat((FT_IDs_test, test_masked_indexes, test_masked_IDs))  # TODO capire come gestire queste shape
-FT_test_dataset = torch.utils.data.TensorDataset(FT_test_set, FT_labels_test)
-print("dataset created!")
-# create the data loader
+# # test the model
+# print('Start testing the model...')
+# # repeat the same operations for test set
+# print('Creating the tensor dataset for the test set...')
+# FT_test_set = create_tensor_dataset_for_BC_from_dataframe(df_fine_tuning_test, embeddings, IDs, CLS)
+# print('Tensor dataset for the test set created!')
+# # remove the CLS
+# CLS_layer_test_FT = FT_test_set[0, :, :]
+# FT_test_set = FT_test_set[1:, :, :]
+# print("Scaling the test set using the z-score...")
+# FT_test_set = (FT_test_set - FT_mean) / FT_std
+# # re-attach the CLS
+# FT_test_set = torch.cat((CLS_layer_test_FT.unsqueeze(0), FT_test_set), dim=0)
+# print("masking the items...")
+# test_masked_outfit, test_masked_indexes, test_masked_IDs = mask_one_item_per_time(FT_test_set,
+#                                                                                   df_fine_tuning_test,
+#                                                                                   MASK,
+#                                                                                   input_contains_CLS=True,
+#                                                                                   device=device,
+#                                                                                   output_in_batch_first=True)
+# test_masked_outfit = torch.Tensor(test_masked_outfit)
+# test_masked_indexes = torch.Tensor(test_masked_indexes)
+# test_masked_IDs = torch.Tensor(test_masked_IDs)
+# print("items masked!")
+# # repeat the labels row
+# df_fine_tuning_test = pd.DataFrame(np.repeat(df_fine_tuning_test.values, 4, axis=0), columns=df_fine_tuning_test.columns)
+# # labels are the masked items IDs
+# FT_IDs_test = torch.Tensor(df_fine_tuning_test.values)
+# FT_labels_test = torch.cat((FT_IDs_test, test_masked_indexes, test_masked_IDs))  # TODO capire come gestire queste shape
+# FT_test_dataset = torch.utils.data.TensorDataset(FT_test_set, FT_labels_test)
+# print("dataset created!")
+# # create the data loader

@@ -16,7 +16,7 @@ from torch.optim import Adam, AdamW
 from torch.utils.data import DataLoader
 
 from BERT_architecture.umBERT2 import umBERT2
-from constants import get_special_embeddings
+from constants import generate_special_embeddings_randomly
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.dataset_augmentation import mask_one_item_per_time
 from utility.umBERT2_trainer import umBERT2_trainer
@@ -30,7 +30,7 @@ SEED = 42
 
 # import the MASK and CLS tokens
 dim_embeddings = 128
-CLS, MASK = get_special_embeddings(dim_embeddings)
+CLS, MASK = generate_special_embeddings_randomly(dim_embeddings)
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
