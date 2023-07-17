@@ -181,21 +181,27 @@ class umBERT2_trainer():
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
-        plt.title('Loss training')
+        plt.title('Loss pre-training')
         plt.show()
         plt.plot(train_acc_CLF, label='train')
         plt.plot(val_acc_CLF, label='val')
         plt.legend()
-        plt.title('Accuracy (Classification) training')
+        plt.title('Accuracy (Classification) pre-training')
         plt.show()
         plt.plot(train_acc_decoding, label='train')
         plt.plot(val_acc_decoding, label='val')
         plt.legend()
-        plt.title('Accuracy (decoding) training')
+        plt.title('Accuracy (decoding) pre-training')
         plt.show()
         return valid_loss_min
 
     def compute_loss(self, dict_outputs, dict_input):
+        """
+        Compute the loss of the model by summing the loss of the classification task and the reconstruction task
+        :param dict_outputs: the outputs of the model (dict)
+        :param dict_input: the inputs of the model (dict)
+        :return: the overall loss of the model (tensor)
+        """
         target = torch.ones(dict_input['shoes'].shape[0]).to(self.device)  # target is a tensor of ones
         loss_shoes = self.criterion['recons'](dict_outputs['shoes'], dict_input['shoes'], target)
         loss_tops = self.criterion['recons'](dict_outputs['tops'], dict_input['tops'], target)
@@ -209,6 +215,11 @@ class umBERT2_trainer():
         return loss
 
     def find_closest_embeddings(self, recons_embeddings):
+        """
+        Find the closest embeddings in the catalogue to the reconstructed embeddings
+        :param recons_embeddings: the reconstructed embeddings (tensor)
+        :return: the IDs of the closest embeddings (tensor)
+        """
         embeddings = np.load(f'../reduced_data/embeddings_{self.model.d_model}.npy')
         embeddings = torch.from_numpy(embeddings).to(self.device)  # convert to tensor
         with open('../reduced_data/IDs_list') as f:
@@ -225,6 +236,12 @@ class umBERT2_trainer():
 
 
     def fine_tuning(self,dataloaders,run=None):
+        """
+        Fine-tuning of the model on the fill in the blank task
+        :param dataloaders: the dataloaders of the training and validation sets (dict)
+        :param run: the run of the experiment, to monitor the training on neptune.ai
+        :return: the minimum validation loss
+        """
         # fine-tuning on the fill in the blank task, input 4 tokens and one is masked
         # the model has to predict the masked token # there isn't CLS token in the input
         train_loss = []  # keep track of the loss of the training phase
@@ -393,10 +410,6 @@ class umBERT2_trainer():
         :return: the accuracy of the MLM task on the test set
         """
         self.model.eval()
-        accuracy_shoes = 0
-        accuracy_tops = 0
-        accuracy_acc = 0
-        accuracy_bottoms = 0
         with torch.no_grad():
             accuracy_shoes = 0.0  # keep track of the accuracy of shoes classification task
             accuracy_tops = 0.0  # keep track of the accuracy of tops classification task

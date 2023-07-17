@@ -94,6 +94,11 @@ def remove_and_compact(df):
     return df_new
 
 def count_categories(column):
+    """
+    Given a column of item_ids, returns the number of items belonging to each category
+    :param column: column of item_ids
+    :return: number of items belonging to each category
+    """
     # to check that all went good
     count_tops = 0
     count_bottoms = 0

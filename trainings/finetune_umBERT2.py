@@ -29,7 +29,7 @@ torch.use_deterministic_algorithms(True)
 SEED = 42
 
 # import the MASK and CLS tokens
-dim_embeddings = 64
+dim_embeddings = 128
 CLS, MASK = get_special_embeddings(dim_embeddings)
 
 # set the working directory to the path of the file
@@ -184,9 +184,9 @@ def objective_fine_tuning(params):
                               device=device, n_epochs=params['n_epochs'])
     # create the data loader
     FT_training_dataloader = DataLoader(FT_training_dataset, batch_size=params['batch_size'],
-                                                         shuffle=True, num_workers=0)
+                                        shuffle=True, num_workers=0)
     FT_valid_dataloader = DataLoader(FT_valid_dataset, batch_size=params['batch_size'],
-                                                      shuffle=True, num_workers=0)
+                                     shuffle=True, num_workers=0)
     FT_data_loaders = {'train': FT_training_dataloader, 'val': FT_valid_dataloader}
 
     # train the model
@@ -207,7 +207,7 @@ print(f'the best hyperparameters combination in fine tuning is: {best_fine_tunin
 
 # define the parameters
 params = {
-    'lr': best_fine_tuning['lr'],
+    'lr': possible_lr[best_fine_tuning['lr']],
     'batch_size': possible_batch_size[best_fine_tuning['batch_size']],
     'n_epochs': possible_n_epochs[best_fine_tuning['n_epochs']],
     'weight_decay': best_fine_tuning['weight_decay']
@@ -217,7 +217,7 @@ run["parameters"] = params
 
 # use optimizer as suggested in the bayesian optimization
 optimizer = possible_optimizers[best_fine_tuning['optimizer']](params=model.parameters(), lr=params['lr'],
-                                                weight_decay=params['weight_decay'])
+                                                               weight_decay=params['weight_decay'])
 
 criterion = {'recons': CosineEmbeddingLoss()}
 
@@ -227,9 +227,9 @@ trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
 
 # create the data loader
 FT_training_dataloader = DataLoader(FT_training_dataset, batch_size=params['batch_size'],
-                                                     shuffle=True, num_workers=0)
+                                    shuffle=True, num_workers=0)
 FT_valid_dataloader = DataLoader(FT_valid_dataset, batch_size=params['batch_size'],
-                                                  shuffle=True, num_workers=0)
+                                 shuffle=True, num_workers=0)
 FT_data_loaders = {'train': FT_training_dataloader, 'val': FT_valid_dataloader}
 
 trainer.fine_tuning(dataloaders=FT_data_loaders, run=run)

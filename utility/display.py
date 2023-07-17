@@ -30,6 +30,12 @@ def display_items(df_reduced, number_of_items=10):
 
 
 def display_outfits(outfits: pd.DataFrame, number_of_outfits=5):
+    """
+    Given the dataframe containing the outfits, display the first number_of_outfits outfits
+    :param outfits: the dataframe containing the outfits
+    :param number_of_outfits: the number of outfits to display
+    :return: None
+    """
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     for i in range(number_of_outfits):
         images = []
@@ -54,6 +60,11 @@ def display_outfits(outfits: pd.DataFrame, number_of_outfits=5):
         plt.show()
 
 def display_single_outfit(ID_list: torch.Tensor):
+    """
+    Given the list of IDs of the items in the outfit, display the outfit
+    :param ID_list: the list of IDs of the items in the outfit
+    :return: None
+    """
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # passa 3 o 4 immagini a seconda che stiamo mostrando le 3 della query o le 4 predette
     images = []

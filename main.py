@@ -1,17 +1,14 @@
 # these we use all the pre-trained and fine-tuned models to obtain a practical demonstration of the results
-# load the embeddings
 import numpy as np
 import pandas as pd
 import json
-
 import torch
 from torch.utils.data import DataLoader
 import os
-
 from BERT_architecture.umBERT import umBERT
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.dataset_augmentation import mask_one_item_per_time
-from constants import CLS, MASK  # CLS is the embedding of the CLS token, MASK is the embedding of the MASK token
+from constants import get_special_embeddings  # CLS is the embedding of the CLS token, MASK is the embedding of the MASK token
 from utility.display import display_outfits, display_predictions
 from utility.umBERT_trainer import umBERT_evaluator
 
@@ -20,6 +17,10 @@ from utility.umBERT_trainer import umBERT_evaluator
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 device = torch.device("mps" if torch.has_mps else "cpu")  # use the mps device if available
+
+# get the special embeddings
+CLS, MASK = get_special_embeddings()
+
 print(f'Working on device: {device}')
 
 with open("./reduced_data/IDs_list", "r") as fp:

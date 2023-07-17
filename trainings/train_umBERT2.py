@@ -1,4 +1,10 @@
 import neptune
+import os
+import torch
+import random
+import json
+import numpy as np
+import pandas as pd
 from hyperopt import Trials
 from hyperopt import hp
 from hyperopt import fmin
@@ -6,22 +12,13 @@ from hyperopt import tpe
 from hyperopt import STATUS_OK
 from sklearn.model_selection import train_test_split
 from torch.nn import CrossEntropyLoss, CosineEmbeddingLoss
-import random
 from BERT_architecture.umBERT2 import umBERT2
-import pandas as pd
-import torch
 from torch.utils.data import DataLoader
-from lion_pytorch import Lion
 from torch.optim import Adam, AdamW
-import os
+from lion_pytorch import Lion
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
-import numpy as np
-
 from utility.dataset_augmentation import mask_one_item_per_time
-from utility.get_category_labels import get_category_labels
-from utility.masking_input import masking_input
 from utility.umBERT2_trainer import umBERT2_trainer
-import json
 from constants import get_special_embeddings, API_TOKEN
 
 # set the seed for reproducibility
@@ -29,7 +26,7 @@ random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
 torch.use_deterministic_algorithms(True)
-SEED=42
+SEED = 42
 
 # import the MASK and CLS tokens
 dim_embeddings = 64
@@ -69,6 +66,7 @@ df_valid, df_test, compatibility_valid, compatibility_test = train_test_split(df
 df_train = df_train.reset_index(drop=True)
 df_valid = df_valid.reset_index(drop=True)
 df_test = df_test.reset_index(drop=True)
+
 with open("../reduced_data/IDs_list", "r") as fp:
     IDs = json.load(fp)
 print("IDs loaded")
@@ -170,8 +168,10 @@ def objective(params):
     # return the loss and the accuracy
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 
+
 # optimize
-best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials, rstate=np.random.default_rng(SEED), verbose=True)
+best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials,
+            rstate=np.random.default_rng(SEED))
 
 # optimal model
 print('hyperparameters tuning completed!')
@@ -179,7 +179,7 @@ print(f'the best hyperparameters combination is: {best}')
 
 # define the parameters
 params = {
-    'lr': best['lr'],
+    'lr': possible_lr[best['lr']],
     'batch_size': possible_batch_size[best['batch_size']],
     'n_epochs': possible_n_epochs[best['n_epochs']],
     'dropout': best['dropout'],
@@ -360,7 +360,8 @@ def objective_fine_tuning(params):
 
 
 # optimize
-best_fine_tuning = fmin(fn=objective_fine_tuning, space=space, algo=tpe_algorithm_FT, max_evals=max_evals, trials=baeyes_trials_FT, rstate=np.random.default_rng(SEED), verbose=True)
+best_fine_tuning = fmin(fn=objective_fine_tuning, space=space, algo=tpe_algorithm_FT, max_evals=max_evals,
+                        trials=baeyes_trials_FT, rstate=np.random.default_rng(SEED))
 
 # optimal model
 print('hyperparameters FINE tuning completed!')
@@ -368,7 +369,7 @@ print(f'the best hyperparameters combination in fine tuning is: {best_fine_tunin
 
 # define the parameters
 params = {
-    'lr': best_fine_tuning['lr'],
+    'lr': possible_lr[best_fine_tuning['lr']],
     'batch_size': possible_batch_size[best_fine_tuning['batch_size']],
     'n_epochs': possible_n_epochs[best_fine_tuning['n_epochs']],
     'weight_decay': best_fine_tuning['weight_decay']
@@ -378,7 +379,7 @@ run["parameters"] = params
 
 # use optimizer as suggested in the bayesian optimization
 optimizer = possible_optimizers[best_fine_tuning['optimizer']](params=model.parameters(), lr=params['lr'],
-                                                weight_decay=params['weight_decay'])
+                                                               weight_decay=params['weight_decay'])
 
 criterion = {'recons': CosineEmbeddingLoss()}
 
