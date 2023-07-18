@@ -172,9 +172,10 @@ class umBERT2_trainer():
 
                         torch.save(checkpoint,
                                    f'../models/umBERT2_pre_trained_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
-                        valid_loss_min = epoch_loss
+                        valid_loss_min = epoch_loss  # update the minimum validation loss
+                        early_stopping = 0  # reset early stopping counter
                     else:
-                        early_stopping += 1
+                        early_stopping += 1  # increment early stopping counter
             if early_stopping == 10:
                 print('Early stopping the training')
                 break
@@ -234,8 +235,7 @@ class umBERT2_trainer():
             closest_embeddings.append(IDs_list[idx])
         return torch.Tensor(closest_embeddings).to(self.device)
 
-
-    def fine_tuning(self,dataloaders,run=None):
+    def fine_tuning(self, dataloaders, run=None):
         """
         Fine-tuning of the model on the fill in the blank task
         :param dataloaders: the dataloaders of the training and validation sets (dict)
@@ -386,8 +386,9 @@ class umBERT2_trainer():
                                    f'../models/umBERT2_finetuned_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_MLM = epoch_accuracy_MLM
+                        early_stopping = 0  # reset early stopping counter
                     else:
-                        early_stopping += 1
+                        early_stopping += 1  # increment early stopping counter
             if early_stopping == 7:
                 print('Early stopping the training')
                 break

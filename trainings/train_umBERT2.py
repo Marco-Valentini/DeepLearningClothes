@@ -49,6 +49,32 @@ print('Device used: ', device)
 # read the dataset
 df = pd.read_csv('../reduced_data/reduced_compatibility.csv')
 
+# load the IDs of the images
+with open("../reduced_data/IDs_list", "r") as fp:
+    IDs = json.load(fp)
+# load the embeddings
+with open(f'../reduced_data/embeddings_{str(dim_embeddings)}.npy', 'rb') as f:
+    embeddings = np.load(f)
+
+# generate the special embeddings CLS and MASK
+create_CLS_modality = 'task_based'  # 'random', 'task_based'
+create_MASK_modality = 'zeros'  # 'random', 'task_based', 'zeros'
+print(f'Creating the special embeddings CLS and MASK using {create_CLS_modality} modality for CLS and '
+      f'{create_MASK_modality} modality for MASK...')
+
+if create_CLS_modality == 'random':
+    CLS, _ = generate_special_embeddings_randomly(dim_embeddings)
+elif create_CLS_modality == 'task_based':
+    CLS = task_based_cls_embedding(dim_embeddings, df, embeddings, IDs)
+elif create_MASK_modality == 'random':
+    _, MASK = generate_special_embeddings_randomly(dim_embeddings)
+elif create_MASK_modality == 'task_based':
+    MASK = task_based_mask_embedding(embeddings)
+elif create_MASK_modality == 'zeros':
+    MASK = initialize_mask_embedding_zeros(dim_embeddings)
+else:
+    raise ValueError('The modality for the creation of the special embeddings is not valid.')
+
 # split the dataset in train, valid and test set (80%, 10%, 10%) in a stratified way on the compatibility column
 compatibility = df['compatibility']
 df = df.drop(columns=['compatibility'])
@@ -65,27 +91,6 @@ df_valid, df_test, compatibility_valid, compatibility_test = train_test_split(df
 df_train = df_train.reset_index(drop=True)
 df_valid = df_valid.reset_index(drop=True)
 df_test = df_test.reset_index(drop=True)
-
-with open("../reduced_data/IDs_list", "r") as fp:
-    IDs = json.load(fp)
-print("IDs loaded")
-
-with open(f'../reduced_data/embeddings_{str(dim_embeddings)}.npy', 'rb') as f:
-    embeddings = np.load(f)
-
-# generate the special embeddings CLS and MASK
-create_CLS_modality = 'random'  # 'random', 'task_based'
-create_MASK_modality = 'random'  # 'random', 'task_based', 'zeros'
-if create_CLS_modality == 'random':
-    CLS, _ = generate_special_embeddings_randomly(dim_embeddings)
-if create_CLS_modality == 'task_based':
-    CLS = task_based_cls_embedding(dim_embeddings, df, embeddings, IDs)
-if create_MASK_modality == 'random':
-    _, MASK = generate_special_embeddings_randomly(dim_embeddings)
-if create_MASK_modality == 'task_based':
-    MASK = task_based_mask_embedding(embeddings)
-if create_MASK_modality == 'zeros':
-    MASK = initialize_mask_embedding_zeros(dim_embeddings)
 
 # create the tensor dataset for the training set (which contains the CLS embedding)
 print('Creating the tensor dataset for the training set...')
@@ -130,12 +135,12 @@ valid_dataset = torch.utils.data.TensorDataset(validation_set, labels_valid)
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 10
+max_evals = 15
 # define the search space
 possible_lr = [1e-5, 1e-4, 1e-3, 1e-2,1e-1]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [i for i in range(1, 12)]
-possible_n_epochs = [20, 50, 100]
+possible_n_epochs = [20, 50, 100, 200]
 possible_batch_size = [32, 64, 256, 512]
 possible_optimizers = [Adam, AdamW, Lion]
 
