@@ -452,3 +452,53 @@ class umBERT2_trainer():
 
         return accuracy_shoes, accuracy_tops, accuracy_acc, accuracy_bottoms
 
+    def evaluate_pre_training(self, dataloader):
+        """
+        Evaluate the model on the test set
+        :param dataloader: dictionary containing the dataloader test set
+        :return: the accuracy of the MLM task on the test set
+        """
+        self.model.eval()
+        with torch.no_grad():
+            accuracy_shoes = 0.0  # keep track of the accuracy of shoes classification task
+            accuracy_tops = 0.0  # keep track of the accuracy of tops classification task
+            accuracy_acc = 0.0  # keep track of the accuracy of accessories classification task
+            accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
+
+            for inputs, labels in dataloader:  # for each batch
+                # labels has to contain 4 tensors of the 4 items categories
+                inputs = inputs.to(self.device)  # move the data to the device
+                labels_shoes = labels[:, 0].type(torch.LongTensor).to(
+                    self.device)  # move the labels_shoes to the device
+                labels_tops = labels[:, 1].type(torch.LongTensor).to(
+                    self.device)  # move the labels_tops to the device
+                labels_acc = labels[:, 2].type(torch.LongTensor).to(
+                    self.device)  # move the labels_acc to the device
+                labels_bottoms = labels[:, 3].type(torch.LongTensor).to(
+                    self.device)  # move the labels_bottoms to the device
+                # compute the predictions of the model
+                dict_outputs = self.model.forward_fine_tune(inputs)  # forward pass computes the
+
+                # update the accuracy of the classification task
+                pred_labels_shoes = self.find_closest_embeddings(dict_outputs['shoes'])
+                pred_labels_tops = self.find_closest_embeddings(dict_outputs['tops'])
+                pred_labels_acc = self.find_closest_embeddings(dict_outputs['accessories'])
+                pred_labels_bottoms = self.find_closest_embeddings(dict_outputs['bottoms'])  # this is an ID list
+
+                # update the accuracy of the MLM task
+                accuracy_shoes += torch.sum(pred_labels_shoes == labels_shoes)
+                accuracy_tops += torch.sum(pred_labels_tops == labels_tops)
+                accuracy_acc += torch.sum(pred_labels_acc == labels_acc)
+                accuracy_bottoms += torch.sum(pred_labels_bottoms == labels_bottoms)
+
+            # compute the average accuracy of the items classification task of the epoch
+            accuracy_shoes = accuracy_shoes / len(dataloader.dataset)
+            accuracy_tops = accuracy_tops / len(dataloader.dataset)
+            accuracy_acc = accuracy_acc / len(dataloader.dataset)
+            accuracy_bottoms = accuracy_bottoms / len(dataloader.dataset)
+
+            print(f'Accuracy (Shoes): {accuracy_shoes}')
+            print(f'Accuracy (Tops): {accuracy_tops}')
+            print(f'Accuracy (Accessories): {accuracy_acc}')
+            print(f'Accuracy (Bottoms): {accuracy_bottoms}')
+
