@@ -10,7 +10,7 @@ from BERT_architecture.umBERT2 import umBERT2
 from torch.utils.data import DataLoader
 from utility.create_tensor_dataset_for_BC_from_dataframe import create_tensor_dataset_for_BC_from_dataframe
 from utility.umBERT2_trainer import umBERT2_trainer
-from constants import *
+from  constants import *
 
 # set the seed for reproducibility
 random.seed(42)
