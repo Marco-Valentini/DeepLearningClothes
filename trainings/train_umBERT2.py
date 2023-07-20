@@ -5,11 +5,7 @@ import random
 import json
 import numpy as np
 import pandas as pd
-from hyperopt import Trials
-from hyperopt import hp
-from hyperopt import fmin
-from hyperopt import tpe
-from hyperopt import STATUS_OK
+from hyperopt import Trials, hp, fmin, tpe, STATUS_OK
 from sklearn.model_selection import train_test_split
 from torch.nn import CrossEntropyLoss, CosineEmbeddingLoss
 from BERT_architecture.umBERT2 import umBERT2
