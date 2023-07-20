@@ -39,6 +39,15 @@ def create_tensor_dataset_from_dataframe(df_outfit: pd.DataFrame, embeddings, id
             # do not transpose to not create conflicts with masking input
     return torch.Tensor(dataset)
 
+def pre_train_BC(model, dataloaders, optimizer):
+    return model, best_loss
+
+def pre_train_MLM(model, dataloaders, optimizer):
+    return model, best_loss
+
+def fine_tune(model, dataloaders, optimizer):
+    return model, best_loss
+
 
 # set the seed for reproducibility
 random.seed(42)
@@ -98,16 +107,18 @@ tensor_dataset_train, tensor_dataset_valid, compatibility_train, compatibility_v
 
 print("dataset for BC created")
 # create the dataloaders
-print("creating dataloaders...")
+print("creating dataloaders for the pre-training...")
 train_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_train, torch.Tensor(compatibility_train)),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 valid_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_valid, torch.Tensor(compatibility_valid)),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 test_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_test, torch.Tensor(compatibility_test)),
-                                             batch_size=32, shuffle=True,
+                                             batch_size=64, shuffle=True,
                                              num_workers=0)
+dataloaders_BC = {'train': train_dataloader_pre_training_BC, 'val': valid_dataloader_pre_training_BC, 'test': test_dataloader_pre_training_BC}
+
 print("dataloaders for pre-training task #1 created!")
 
 # prepare the data for the pre-training task #2
@@ -142,14 +153,16 @@ print("dataset for BC created")
 # create the dataloaders
 print("creating dataloaders...")
 train_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_train_2),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 valid_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_valid_2),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 test_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_test_2),
-                                             batch_size=32, shuffle=True,
+                                             batch_size=64, shuffle=True,
                                              num_workers=0)
+
+dataloaders_MLM = {'train': train_dataloader_pre_training_MLM, 'val': valid_dataloader_pre_training_MLM, 'test': test_dataloader_pre_training_MLM}
 print("dataloaders for pre-training task #2 created!")
 
 # create the dataset for the fill in the blank task
@@ -189,14 +202,15 @@ print("dataset for BC created")
 # create the dataloaders
 print("creating dataloaders...")
 train_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_train_3),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 valid_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_valid_3),
-                                              batch_size=32,
+                                              batch_size=64,
                                               shuffle=True, num_workers=0)
 test_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_test_3),
-                                             batch_size=32, shuffle=True,
+                                             batch_size=64, shuffle=True,
                                              num_workers=0)
+dataloaders_fine_tuning = {'train': train_dataloader_fine_tuning, 'val': valid_dataloader_fine_tuning, 'test': test_dataloader_fine_tuning}
 print("dataloaders for pre-training task #2 created!")
 
 
@@ -206,21 +220,27 @@ print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
+possible_learning_rates = [1e-5,1e-4,1e-3,1e-2]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [i for i in range(1, 12)]
-possible_n_epochs = [20, 50, 100]
-possible_batch_size = [16, 32, 64]
+possible_n_epochs_pretrainig = [50, 100, 200]
+possible_n_epochs_finetuning = [10, 20, 50]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
-    'lr': hp.uniform('lr', 1e-5, 1e-1),
-    'batch_size': hp.choice('batch_size', possible_batch_size),
-    'n_epochs': hp.choice('n_epochs', possible_n_epochs),
+    'lr1': hp.choice('lr1', possible_learning_rates),
+    'lr2': hp.choice('lr2', possible_learning_rates),
+    'lr3': hp.choice('lr3', possible_learning_rates),
+    'n_epochs_1': hp.choice('n_epochs_1', possible_n_epochs_pretrainig),
+    'n_epochs_2': hp.choice('n_epochs_2', possible_n_epochs_pretrainig),
+    'n_epochs_3': hp.choice('n_epochs_3', possible_n_epochs_finetuning),
     'dropout': hp.uniform('dropout', 0, 0.5),
     'num_encoders': hp.choice('num_encoders', possible_n_encoders),
     'num_heads': hp.choice('num_heads', possible_n_heads),
     'weight_decay': hp.uniform('weight_decay', 0, 0.1),
-    'optimizer': hp.choice('optimizer', possible_optimizers)
+    'optimizer1': hp.choice('optimizer1', possible_optimizers),
+    'optimizer2': hp.choice('optimizer2', possible_optimizers),
+    'optimizer3': hp.choice('optimizer3', possible_optimizers)
 }
 
 # define the algorithm
@@ -235,15 +255,23 @@ def objective(params):
     # define the model
     model = umBERT(embeddings=embeddings, num_encoders=params['num_encoders'],
                    num_heads=params['num_heads'], dropout=params['dropout'])
-    # define the optimizer
-    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 
     # pre train on task #1
+    # define the optimizer
+    optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+    model, best_loss_BC = pre_train_BC(model, dataloaders_BC, optimizer1)
 
     # pre train on task #2
+    # define the optimizer
+    optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
+    model, best_loss_MLM = pre_train_MLM(model, dataloaders_MLM, optimizer2)
 
     # fine tune on task #3
+    # define the optimizer
+    optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
+    model, best_loss_fine_tune = fine_tune(model, dataloaders_fine_tuning, optimizer3)
 
+    loss = 0.2*best_loss_BC + 0.3*best_loss_MLM + 0.5*best_loss_fine_tune
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 
@@ -251,5 +279,38 @@ def objective(params):
 # optimize
 best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals, trials=baeyes_trials)
 
-# pre-training task #2: Reconstruction of the inputs with random masking (using unified dataset MLM)
-# fine-tuning task: Reconstruction of the inputs with one mask per time
+# train the model using the optimal hyperparameters found
+params = {
+    'lr1': possible_learning_rates[best['lr1']],
+    'lr2': possible_learning_rates[best['lr2']],
+    'lr3': possible_learning_rates[best['lr3']],
+    'n_epochs_1': possible_n_epochs_pretrainig[best['n_epochs_1']],
+    'n_epochs_2': possible_n_epochs_pretrainig[best['n_epochs_2']],
+    'n_epochs_3': possible_n_epochs_finetuning[best['n_epochs_3']],
+    'dropout': best['dropout'],
+    'num_encoders': possible_n_encoders[best['num_encoders']],
+    'num_heads': possible_n_heads[best['num_heads']],
+    'weight_decay': best['weight_decay'],
+    'optimizer1': possible_optimizers[best['optimizer1']],
+    'optimizer2': possible_optimizers[best['optimizer2']],
+    'optimizer3': possible_optimizers[best['optimizer3']]
+}
+# define the model
+model = umBERT(embeddings=embeddings, num_encoders=params['num_encoders'],
+               num_heads=params['num_heads'], dropout=params['dropout'])
+
+# pre train on task #1
+# define the optimizer
+optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+model, best_loss_BC = pre_train_BC(model, dataloaders_BC, optimizer1)
+
+# pre train on task #2
+# define the optimizer
+optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
+model, best_loss_MLM = pre_train_MLM(model, dataloaders_MLM, optimizer2)
+
+# fine tune on task #3
+# define the optimizer
+optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
+model, best_loss_fine_tune = fine_tune(model, dataloaders_fine_tuning, optimizer3)
+
