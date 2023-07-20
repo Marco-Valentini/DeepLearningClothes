@@ -46,7 +46,6 @@ class umBERT2_trainer():
 
         valid_loss_min = np.Inf  # track change in validation loss
         early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
-        self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
@@ -113,7 +112,7 @@ class umBERT2_trainer():
 
                     # update the accuracy of the classification task
                     accuracy_CLF += torch.sum(pred_labels_CLF == labels_CLF)
-                    # update the accuracy of the MLM task
+                    # update the accuracy of the reconstruction task
                     accuracy_shoes += torch.sum(pred_labels_shoes == labels_shoes)
                     accuracy_tops += torch.sum(pred_labels_tops == labels_tops)
                     accuracy_acc += torch.sum(pred_labels_acc == labels_acc)
@@ -252,7 +251,6 @@ class umBERT2_trainer():
         valid_loss_min = np.Inf  # track change in validation loss
         early_stopping = 0  # early stopping counter
         best_valid_acc_MLM = 0.0  # track change in validation accuracy
-        self.model = self.model.to(self.device)  # set the model to run on the device
 
         for epoch in range(self.n_epochs):
             for phase in ['train', 'val']:
@@ -468,13 +466,13 @@ class umBERT2_trainer():
             for inputs, labels in dataloader:  # for each batch
                 # labels has to contain 4 tensors of the 4 items categories
                 inputs = inputs.to(self.device)  # move the data to the device
-                labels_shoes = labels[:, 0].type(torch.LongTensor).to(
+                labels_shoes = labels[:, 1].type(torch.LongTensor).to(
                     self.device)  # move the labels_shoes to the device
-                labels_tops = labels[:, 1].type(torch.LongTensor).to(
+                labels_tops = labels[:, 2].type(torch.LongTensor).to(
                     self.device)  # move the labels_tops to the device
-                labels_acc = labels[:, 2].type(torch.LongTensor).to(
+                labels_acc = labels[:, 3].type(torch.LongTensor).to(
                     self.device)  # move the labels_acc to the device
-                labels_bottoms = labels[:, 3].type(torch.LongTensor).to(
+                labels_bottoms = labels[:, 4].type(torch.LongTensor).to(
                     self.device)  # move the labels_bottoms to the device
                 # compute the predictions of the model
                 dict_outputs = self.model.forward_fine_tune(inputs)  # forward pass computes the

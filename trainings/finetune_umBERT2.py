@@ -65,6 +65,8 @@ model = umBERT2(d_model=checkpoint['d_model'],
 # load the model weights
 model.load_state_dict(checkpoint['model_state_dict'])
 
+model = model.to(device)
+
 print('Starting the search for fine-tuning the model...')
 # load the fine-tuning dataset
 df_fine_tuning = pd.read_csv('../reduced_data/unified_dataset_MLM.csv')
@@ -180,8 +182,8 @@ def objective_fine_tuning(params):
     # define the criteria
     criterion = {'clf': CrossEntropyLoss(), 'recons': CosineEmbeddingLoss()}
     # define the trainer
-    trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,
-                              device=device, n_epochs=params['n_epochs'])
+    trainer = umBERT2_trainer(model=model, optimizer=optimizer, criterion=criterion,n_epochs=params['n_epochs'], device=device)
+
     # create the data loader
     FT_training_dataloader = DataLoader(FT_training_dataset, batch_size=params['batch_size'],
                                         shuffle=True, num_workers=0)
