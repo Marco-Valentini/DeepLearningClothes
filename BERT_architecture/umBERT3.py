@@ -141,17 +141,17 @@ class umBERT3(nn.Module):
         logits_tops = self.ffnn_tops(outputs[:, 2, :])  # compute the logits for the tops
         logits_acc = self.ffnn_acc(outputs[:, 3, :])  # compute the logits for the accessories
         logits_bottoms = self.ffnn_bottoms(outputs[:, 4, :])  # compute the logits for the bottoms
-        masked_logits = []  # the logits of the masked items
+        masked_logits = []  # the predictions for the masked items
         for i in range(len(masked_items)):  # for each outfit
-            if masked_positions[i] == 1:  # if the masked item is a shoe
+            if masked_positions[i] == 0:  # if the masked item is a shoe
                 masked_logits.append(logits_shoes[i])  # add the logits of the masked item to the list
-            elif masked_positions[i] == 2:  # if the masked item is a top
+            elif masked_positions[i] == 1:  # if the masked item is a top
                 masked_logits.append(logits_tops[i])  # add the logits of the masked item to the list
-            elif masked_positions[i] == 3:  # if the masked item is an accessory
+            elif masked_positions[i] == 2:  # if the masked item is an accessory
                 masked_logits.append(logits_acc[i])  # add the logits of the masked item to the list
-            elif masked_positions[i] == 4:  # if the masked item is a bottom
+            elif masked_positions[i] == 3:  # if the masked item is a bottom
                 masked_logits.append(logits_bottoms[i])  # add the logits of the masked item to the list
-        return torch.Tensor(masked_logits), torch.Tensor(masked_items)
+        return torch.stack(masked_logits), torch.stack(masked_items), masked_positions
 
 
 

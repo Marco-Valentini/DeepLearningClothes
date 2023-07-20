@@ -193,8 +193,13 @@ def pre_train_MLM(model, dataloaders, optimizer, criterion, n_epochs, run):
             accuracy_tops = 0.0  # keep track of the accuracy of tops classification task
             accuracy_acc = 0.0  # keep track of the accuracy of accessories classification task
             accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
-            for inputs in dataloaders[phase]:  # for each batch
+            for inputs, labels in dataloaders[phase]:  # for each batch
                 inputs = inputs.to(device)  # move the input tensors to the GPU
+                # labels are the IDs of the items in the outfit
+                labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
+                labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
+                labels_acc = labels[:, 2].to(device)  # move the labels_acc to the device
+                labels_bottoms = labels[:, 3].to(device)  # move the labels_bottoms to the device
 
                 optimizer.zero_grad()  # zero the parameter gradients
                 with torch.set_grad_enabled(phase == 'train'):  # forward + backward + optimize only if in training phase
@@ -220,20 +225,11 @@ def pre_train_MLM(model, dataloaders, optimizer, criterion, n_epochs, run):
                 pred_acc = find_closest_embeddings(logits_acc, model.catalogue)
                 pred_bottoms = find_closest_embeddings(logits_bottoms, model.catalogue)
 
-                # compute the accuracy of the MLM task
-                accuracy_shoes = 0.0
-                accuracy_tops = 0.0
-                accuracy_acc = 0.0
-                accuracy_bottoms = 0.0
-                for i in range(inputs.shape[0]):
-                    if torch.equal(pred_shoes[i, :], inputs[i, 0, :]):
-                        accuracy_shoes += 1
-                    if torch.equal(pred_tops[i, :], inputs[i, 1, :]):
-                        accuracy_tops += 1
-                    if torch.equal(pred_acc[i, :], inputs[i, 2, :]):
-                        accuracy_acc += 1
-                    if torch.equal(pred_bottoms[i, :], inputs[i, 3, :]):
-                        accuracy_bottoms += 1
+                # update the accuracy of the reconstruction task
+                accuracy_shoes += torch.sum(pred_shoes == labels_shoes)
+                accuracy_tops += torch.sum(pred_tops == labels_tops)
+                accuracy_acc += torch.sum(pred_acc == labels_acc)
+                accuracy_bottoms += torch.sum(pred_bottoms == labels_bottoms)
 
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
@@ -281,7 +277,6 @@ def pre_train_MLM(model, dataloaders, optimizer, criterion, n_epochs, run):
                     # save the checkpoint dictionary to a file
                     now = datetime.now()
                     dt_string = now.strftime("%d_%m_%Y")
-                    # TODO se va male prova salvataggio su cpu
                     torch.save(checkpoint, f'./models/umBERT2_pre_trained_MLM_{model.d_model}_{dt_string}.pth')
                     valid_loss_min = epoch_loss  # update the minimum validation loss
                     early_stopping = 0  # reset early stopping counter
@@ -336,21 +331,26 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
             running_loss = 0.0  # keep track of the loss
             accuracy = 0.0  # keep track of the accuracy of the fill in the blank task
 
-            for inputs in dataloaders[phase]:  # for each batch
+            for inputs, labels in dataloaders[phase]:  # for each batch
                 inputs = inputs.to(device)  # move the input tensors to the GPU
+                # labels are the IDs of the items in the outfit
+                labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
+                labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
+                labels_acc = labels[:, 2].to(device)  # move the labels_acc to the device
+                labels_bottoms = labels[:, 3].to(device)  # move the labels_bottoms to the device
 
                 optimizer.zero_grad()  # zero the parameter gradients
 
                 with torch.set_grad_enabled(phase == 'train'):  # forward + backward + optimize only if in training phase
                     # compute the forward pass
-                    outputs, masked_positions, masked_items = model.forward_fill_in_the_blank(inputs)
+                    masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
 
                     # compute the loss
                     loss = torch.zeros(1)
-                    for i in range(outputs.shape[0]):  # for each outfit in the batch
-                        j = masked_positions[i]  # the position of the masked item in the outfit
-                        # compute the loss
-                        loss += criterion(outputs[i, j, :], masked_items[i, :])  # compute the loss for the masked item
+                    target = torch.ones(masked_logits.shape[0]).to(device)
+                    for i in range(masked_logits.shape[0]):  # for each outfit in the batch
+                        # compute the loss for each masked item
+                        loss += criterion(masked_logits, masked_items,target)  # compute the loss for the masked item
 
                     if phase == 'train':
                         loss.backward()
@@ -361,16 +361,21 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
 
                 # from the outputs of the model, retrieve only the predictions of the masked items
                 # (the ones that are in the positions of the masked items)
-                masked_reconstructions = outputs[torch.arange(outputs.shape[0]), masked_positions, :]
 
                 # compute the closest embeddings to the reconstructed embeddings
-                predictions = find_closest_embeddings(masked_reconstructions, model.catalogue)
+                predictions = find_closest_embeddings(masked_logits, model.catalogue)
+
+                masked_IDs = []
+
+                for i in range(len(labels_shoes)):
+                    masked_IDs.append(labels_shoes[i].item())
+                    masked_IDs.append(labels_tops[i].item())
+                    masked_IDs.append(labels_acc[i].item())
+                    masked_IDs.append(labels_bottoms[i].item())
+                masked_IDs = torch.Tensor(masked_IDs).to(device)
 
                 # compute the accuracy of the fill in the blank task
-                accuracy = 0
-                for i in range(inputs.shape[0]):
-                    if torch.equal(predictions[i, :], masked_items[i, :]):
-                        accuracy += 1
+                accuracy += torch.sum(predictions == masked_IDs)
 
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
@@ -435,19 +440,21 @@ def find_closest_embeddings(recons_embeddings, embeddings):
     :param recons_embeddings: the reconstructed embeddings (tensor) (shape: (batch_size, embedding_size))
     :return: the closest embeddings (tensor)
     """
-    cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)  # define the cosine similarity function
     embeddings = torch.from_numpy(embeddings).to(device)  # convert to tensor
+    with open('./reduced_data/IDs_list') as f:
+        IDs_list = json.load(f)
     closest_embeddings = []
+    cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
     for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
         # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-        distances = cosine_similarity(recons_embeddings[i, :], embeddings)
+        similarities = cosine_similarity(recons_embeddings[i, :], embeddings)
         # find the index of the closest embedding
-        idx = torch.max(distances, dim=0).indices
+        idx = torch.max(similarities, dim=0).indices
         # retrieve the closest embedding
         closest_embedding = embeddings[idx, :]
         # append the closest embedding to the list
-        closest_embeddings.append(closest_embedding)
-    return torch.stack(closest_embeddings).to(device)
+        closest_embeddings.append(IDs_list[idx])
+    return torch.Tensor(closest_embeddings).to(device)
 
 # set the seed for reproducibility
 random.seed(42)
@@ -456,13 +463,13 @@ torch.manual_seed(42)
 torch.use_deterministic_algorithms(True)
 SEED = 42
 
-dim_embeddings = 128
+dim_embeddings = 64
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # use GPU if available
-#device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
+# device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
 device = torch.device('cpu')
 print('Device used: ', device)
 
@@ -535,15 +542,15 @@ std_pre_training_MLM = tensor_dataset_train_2.std(dim=1).std(dim=0)
 tensor_dataset_train_2 = (tensor_dataset_train_2 - mean_pre_training_MLM) / std_pre_training_MLM
 tensor_dataset_test_2 = (tensor_dataset_test_2 - mean_pre_training_MLM) / std_pre_training_MLM
 # split the training into train and valid set
-tensor_dataset_train_2, tensor_dataset_valid_2 = train_test_split(tensor_dataset_train_2, test_size=0.2,
+tensor_dataset_train_2, tensor_dataset_valid_2, df_2_train, df_2_val = train_test_split(tensor_dataset_train_2, df_2_train, test_size=0.2,
                                                                   random_state=42, shuffle=True)
 
 print("dataset for MLM created")
 # create the dataloaders
 print("creating dataloaders...")
-train_dataloader_pre_training_MLM = DataLoader(tensor_dataset_train_2, batch_size=64, shuffle=True, num_workers=0)
-valid_dataloader_pre_training_MLM = DataLoader(tensor_dataset_valid_2, batch_size=64, shuffle=True, num_workers=0)
-test_dataloader_pre_training_MLM = DataLoader(tensor_dataset_test_2, batch_size=64, shuffle=True, num_workers=0)
+train_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_train_2,torch.Tensor(df_2_train.values)), batch_size=64, shuffle=True, num_workers=0)
+valid_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_valid_2,torch.Tensor(df_2_val.values)), batch_size=64, shuffle=True, num_workers=0)
+test_dataloader_pre_training_MLM = DataLoader(TensorDataset(tensor_dataset_test_2,torch.Tensor(df_2_test.values)), batch_size=64, shuffle=True, num_workers=0)
 
 dataloaders_MLM = {'train': train_dataloader_pre_training_MLM, 'val': valid_dataloader_pre_training_MLM, 'test': test_dataloader_pre_training_MLM}
 print("dataloaders for pre-training task #2 created!")
@@ -573,15 +580,15 @@ std_fine_tuning = tensor_dataset_train_3.std(dim=1).std(dim=0)
 tensor_dataset_train_3 = (tensor_dataset_train_3 - mean_fine_tuning) / std_fine_tuning
 tensor_dataset_test_3 = (tensor_dataset_test_3 - mean_fine_tuning) / std_fine_tuning
 # split the training into train and valid set
-tensor_dataset_train_3, tensor_dataset_valid_3 = train_test_split(tensor_dataset_train_3, test_size=0.2,
+tensor_dataset_train_3, tensor_dataset_valid_3, df_3_train, df_3_val = train_test_split(tensor_dataset_train_3, df_3_train, test_size=0.2,
                                                                   random_state=42, shuffle=True)
 
 print("dataset for BC created")
 # create the dataloaders
 print("creating dataloaders...")
-train_dataloader_fine_tuning = DataLoader(tensor_dataset_train_3, batch_size=64, shuffle=True, num_workers=0)
-valid_dataloader_fine_tuning = DataLoader(tensor_dataset_valid_3, batch_size=64, shuffle=True, num_workers=0)
-test_dataloader_fine_tuning = DataLoader(tensor_dataset_test_3, batch_size=64, shuffle=True, num_workers=0)
+train_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_train_3, torch.Tensor(df_3_train.values)), batch_size=64, shuffle=True, num_workers=0)
+valid_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_valid_3, torch.Tensor(df_3_val.values)), batch_size=64, shuffle=True, num_workers=0)
+test_dataloader_fine_tuning = DataLoader(TensorDataset(tensor_dataset_test_3, torch.Tensor(df_3_test.values)), batch_size=64, shuffle=True, num_workers=0)
 dataloaders_fine_tuning = {'train': train_dataloader_fine_tuning, 'val': valid_dataloader_fine_tuning,
                            'test': test_dataloader_fine_tuning}
 print("dataloaders for pre-training task #2 created!")
@@ -590,7 +597,7 @@ print("dataloaders for pre-training task #2 created!")
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 1
+max_evals = 10
 # define the search space
 possible_learning_rates = [1e-5,1e-4,1e-3,1e-2]
 possible_n_heads = [1, 2, 4, 8]
@@ -624,6 +631,7 @@ baeyes_trials = Trials()
 
 # define the objective function
 def objective(params):
+    print(f"Trainig with params: {params}")
     # define the model
     model = umBERT(embeddings=embeddings, num_encoders=params['num_encoders'],
                    num_heads=params['num_heads'], dropout=params['dropout'])
