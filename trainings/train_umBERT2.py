@@ -165,6 +165,8 @@ def objective(params):
     # define the model
     model = umBERT2(d_model=dim_embeddings, num_encoders=params['num_encoders'],
                     num_heads=params['num_heads'], dropout=params['dropout'])
+    # move the model on the device
+    model.to(device)
     # define the optimizer
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 
@@ -210,6 +212,8 @@ run["parameters"] = params
 # define the umBERT2 model
 model = umBERT2(d_model=dim_embeddings, num_encoders=params['num_encoders'],
                 num_heads=params['num_heads'], dropout=params['dropout'])
+# move the model on the device
+model.to(device)
 
 # use optimizer as suggested in the bayesian optimization
 optimizer = possible_optimizers[best['optimizer']](params=model.parameters(), lr=params['lr'],
