@@ -44,6 +44,7 @@ run = neptune.init_run(
 
 # use GPU if available
 device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
+# device = torch.device('cpu')
 print('Device used: ', device)
 
 with open("../reduced_data/IDs_list", "r") as fp:
@@ -62,10 +63,12 @@ model = umBERT2(d_model=checkpoint['d_model'],
                 num_heads=checkpoint['num_heads'],
                 dropout=checkpoint['dropout'],
                 dim_feedforward=checkpoint['dim_feedforward'])
+
 # load the model weights
 model.load_state_dict(checkpoint['model_state_dict'])
 
 model = model.to(device)
+print(f"Model successfully loaded on device {device}")
 
 print('Starting the search for fine-tuning the model...')
 # load the fine-tuning dataset
@@ -156,7 +159,7 @@ max_evals = 10
 # define the search space
 possible_lr = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 possible_n_epochs = [10, 20, 50]
-possible_batch_size = [32, 64, 256, 512]
+possible_batch_size = [32, 64, 256]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
@@ -271,3 +274,5 @@ FT_test_dataset = torch.utils.data.TensorDataset(FT_test_set, FT_labels_test)
 print("dataset created!")
 # create the data loader for test
 FT_test_dataloader = DataLoader(FT_test_dataset, batch_size=params['batch_size'], shuffle=True, num_workers=0)
+
+# evaluate the fine-tuned model on the test set

@@ -168,9 +168,11 @@ class umBERT2_trainer():
                                       'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-
+                        # save the checkpoint dictionary to a file
+                        now = datetime.now()
+                        dt_string = now.strftime("%d_%m_%Y")
                         torch.save(checkpoint,
-                                   f'../models/umBERT2_pre_trained_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
+                                   f'../models/umBERT2_pre_trained_{self.model.d_model}_{dt_string}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss  # update the minimum validation loss
                         early_stopping = 0  # reset early stopping counter
                     else:
@@ -379,9 +381,11 @@ class umBERT2_trainer():
                                       'dropout': self.model.dropout,
                                       'dim_feedforward': self.model.dim_feedforward,
                                       'model_state_dict': self.model.state_dict()}
-
+                        # save the checkpoint dictionary to a file
+                        now = datetime.now()
+                        dt_string = now.strftime("%d_%m_%Y")
                         torch.save(checkpoint,
-                                   f'../models/umBERT2_finetuned_{self.model.d_model}.pth')  # save the checkpoint dictionary to a file
+                                   f'../models/umBERT2_finetuned_{self.model.d_model}_{dt_string}.pth')  # save the checkpoint dictionary to a file
                         valid_loss_min = epoch_loss
                         best_valid_acc_MLM = epoch_accuracy_MLM
                         early_stopping = 0  # reset early stopping counter
@@ -408,6 +412,7 @@ class umBERT2_trainer():
         :param dataloaders: dictionary containing the dataloaders for the train, validation and test sets
         :return: the accuracy of the MLM task on the test set
         """
+        # IMPORTANTE: prima di chiamare queste serve aver aggiornato il modello salvato nel trainer con quello migliore salvato
         self.model.eval()
         with torch.no_grad():
             accuracy_shoes = 0.0  # keep track of the accuracy of shoes classification task
@@ -456,6 +461,7 @@ class umBERT2_trainer():
         :param dataloader: dictionary containing the dataloader test set
         :return: the accuracy of the MLM task on the test set
         """
+        # IMPORTANTE: prima di chiamare queste serve aver aggiornato il modello salvato nel trainer con quello migliore salvato
         self.model.eval()
         with torch.no_grad():
             accuracy_shoes = 0.0  # keep track of the accuracy of shoes classification task

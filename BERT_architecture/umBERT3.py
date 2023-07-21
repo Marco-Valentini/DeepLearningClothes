@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
-device = torch.device("cpu")
+device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
+# device = torch.device("cpu")
 
 class umBERT3(nn.Module):
     """
@@ -60,7 +60,7 @@ class umBERT3(nn.Module):
         """
         # create a tensor of shape (batch_size, seq_len+1, d_model)
         new_inputs = torch.zeros((inputs.shape[0], inputs.shape[1] + 1, inputs.shape[2])).to(device)
-        for i in range(inputs.shape[0]):  # for each outfit in inputs
+        for i in range(inputs.shape[0]):  # for each outfit in inputsb
             new_inputs[i] = torch.cat((self.CLS, inputs[i]), 0)  # add the CLS token at the beginning of the outfit
         return new_inputs
 
@@ -151,7 +151,7 @@ class umBERT3(nn.Module):
                 masked_logits.append(logits_acc[i])  # add the logits of the masked item to the list
             elif masked_positions[i] == 3:  # if the masked item is a bottom
                 masked_logits.append(logits_bottoms[i])  # add the logits of the masked item to the list
-        return torch.stack(masked_logits), torch.stack(masked_items), masked_positions
+        return torch.stack(masked_logits).to(device), torch.stack(masked_items).to(device), masked_positions
 
 
 

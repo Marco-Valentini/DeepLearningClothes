@@ -155,7 +155,7 @@ def pre_train_BC(model, dataloaders, optimizer, criterion, n_epochs, run):
     plt.plot(train_acc_CLF, label='train')
     plt.plot(val_acc_CLF, label='val')
     plt.legend()
-    plt.title('ccuracy (Classification) pre-training')
+    plt.title('Accuracy (Classification) pre-training')
     plt.show()
     return model, valid_loss_min
 
@@ -346,11 +346,13 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
                     masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
 
                     # compute the loss
-                    loss = torch.zeros(1)
+                    loss = torch.zeros(1).to(device)
                     target = torch.ones(masked_logits.shape[0]).to(device)
                     for i in range(masked_logits.shape[0]):  # for each outfit in the batch
                         # compute the loss for each masked item
                         loss += criterion(masked_logits, masked_items,target)  # compute the loss for the masked item
+                    # normalize the loss
+                    loss = loss / masked_logits.shape[0]
 
                     if phase == 'train':
                         loss.backward()
@@ -363,7 +365,11 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
                 # (the ones that are in the positions of the masked items)
 
                 # compute the closest embeddings to the reconstructed embeddings
-                predictions = find_closest_embeddings(masked_logits, model.catalogue)
+                # predictions = find_closest_embeddings(masked_logits, model.catalogue)
+
+                #  implement top-k accuracy
+                top_k_predictions = find_top_k_closest_embeddings(masked_logits, model.catalogue, topk=20)
+
 
                 masked_IDs = []
 
@@ -373,9 +379,13 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
                     masked_IDs.append(labels_acc[i].item())
                     masked_IDs.append(labels_bottoms[i].item())
                 masked_IDs = torch.Tensor(masked_IDs).to(device)
+                # TODO capire come calcolare accuracy
+                for i,id in enumerate(masked_IDs):
+                    if id in top_k_predictions[i]:
+                        accuracy += 1
 
-                # compute the accuracy of the fill in the blank task
-                accuracy += torch.sum(predictions == masked_IDs)
+                # # compute the accuracy of the fill in the blank task
+                # accuracy += torch.sum(predictions == masked_IDs)
 
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
@@ -424,12 +434,12 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
     plt.plot(train_loss, label='train')
     plt.plot(val_loss, label='val')
     plt.legend()
-    plt.title('Loss pre-training (fill in the blank task)')
+    plt.title('Loss fine-tuning (fill in the blank task)')
     plt.show()
     plt.plot(train_acc, label='train')
     plt.plot(val_acc, label='val')
     plt.legend()
-    plt.title('Accuracy (fill in the blank) pre-training')
+    plt.title('Accuracy (fill in the blank) fine-tuning')
     plt.show()
     return model, valid_loss_min
 
@@ -456,6 +466,23 @@ def find_closest_embeddings(recons_embeddings, embeddings):
         closest_embeddings.append(IDs_list[idx])
     return torch.Tensor(closest_embeddings).to(device)
 
+def find_top_k_closest_embeddings(recons_embeddings, embeddings, topk=20):
+    embeddings = torch.from_numpy(embeddings).to(device)  # convert to tensor
+    with open('./reduced_data/IDs_list') as f:
+        IDs_list = json.load(f)
+    closest_embeddings = []
+    cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
+    for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
+        # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
+        similarities = cosine_similarity(recons_embeddings[i, :], embeddings)
+        # find the index of the closest embedding
+        idx = torch.topk(similarities,k=20).indices
+        idx = idx.tolist()
+        closest = [IDs_list[j] for j in idx]
+        # append the closest embedding to the list
+        closest_embeddings.append(closest)
+    return closest_embeddings
+
 # set the seed for reproducibility
 random.seed(42)
 np.random.seed(42)
@@ -469,8 +496,8 @@ dim_embeddings = 64
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # use GPU if available
-# device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('mps' if torch.backends.mps.is_built() else 'cpu')
+#device = torch.device('cpu')
 print('Device used: ', device)
 
 # pre-training task #1: Binary Classification (using compatibility dataset)
@@ -603,7 +630,7 @@ possible_learning_rates = [1e-5,1e-4,1e-3,1e-2]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [1,3,6,8,10]
 possible_n_epochs_pretrainig = [50, 100, 200]
-possible_n_epochs_finetuning = [10, 20, 50]
+possible_n_epochs_finetuning = [2] #0, 20, 50]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
@@ -639,25 +666,33 @@ def objective(params):
     print(f"model loaded on {device}")
     # pre-train on task #1
     # define the optimizer
-    optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
-    criterion1 = CrossEntropyLoss()
-    model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, optimizer=optimizer1,
-                                       criterion=criterion1, n_epochs=params['n_epochs_1'], run=None)
+    # print("Starting pre-training the model on task #1...")
+    # optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+    # criterion1 = CrossEntropyLoss()
+    # model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, optimizer=optimizer1,
+    #                                    criterion=criterion1, n_epochs=params['n_epochs_1'], run=None)
+    #
+    # # pre-train on task #2
+    # # define the optimizer
+    # print("Starting pre-training the model on task #2...")
+    # optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
+    # criterion2 = CosineEmbeddingLoss()
+    # model, best_loss_MLM = pre_train_MLM(model=model, dataloaders=dataloaders_MLM, optimizer=optimizer2,
+    #                                      criterion=criterion2, n_epochs=params['n_epochs_2'], run=None)
 
-    # pre-train on task #2
-    # define the optimizer
-    optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
-    criterion2 = CosineEmbeddingLoss()
-    model, best_loss_MLM = pre_train_MLM(model=model, dataloaders=dataloaders_MLM, optimizer=optimizer2,
-                                         criterion=criterion2, n_epochs=params['n_epochs_2'], run=None)
+    # load the state dict
+    checkpoint = torch.load('./test_buoni/umBERT3_pre_trained_MLM_64_21_07_2023.pth')
 
     # fine-tune on task #3
     # define the optimizer
+    print("Starting fine tuning the model...")
     optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
     criterion3 = CosineEmbeddingLoss()
     model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_fine_tuning, optimizer=optimizer3,
                                            criterion=criterion3, n_epochs=params['n_epochs_3'], run=None)
-
+    best_loss_BC = 0
+    best_loss_MLM = 0
+    # compute the weighted sum of the losses
     loss = 0.2*best_loss_BC + 0.3*best_loss_MLM + 0.5*best_loss_fine_tune
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
