@@ -630,7 +630,7 @@ possible_learning_rates = [1e-5,1e-4,1e-3,1e-2]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [1,3,6,8,10]
 possible_n_epochs_pretrainig = [50, 100, 200]
-possible_n_epochs_finetuning = [2] #0, 20, 50]
+possible_n_epochs_finetuning = [20, 50, 100]
 possible_optimizers = [Adam, AdamW, Lion]
 
 space = {
