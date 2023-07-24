@@ -5,7 +5,6 @@ import torch.nn.functional as F
 
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 # device = torch.device("cpu")
-
 class umBERT3(nn.Module):
     """
     This class implements the umBERT2 architecture.
@@ -14,7 +13,7 @@ class umBERT3(nn.Module):
     ffnn (one for each category) to predict not only the masked item (MLM task) but also the non-masked ones (reconstruction task).
     """
 
-    def __init__(self, embeddings, num_encoders=6, num_heads=1, dropout=0, dim_feedforward=None):
+    def __init__(self, embeddings, embeddings_dict, num_encoders=6, num_heads=1, dropout=0, CLS =None,MASK = None,dim_feedforward=None):
         """
         the constructor of the class umBERT2
         :param embeddings: the catalogue of the embeddings
@@ -31,9 +30,15 @@ class umBERT3(nn.Module):
         self.num_heads = num_heads  # the number of heads in the multi-head attention
         self.d_model = embeddings.shape[1]  # the dimension of the embeddings
         self.dim_feedforward = dim_feedforward
+        self.catalogue_dict = embeddings_dict
         self.dropout = dropout  # dropout probability
-        self.CLS = torch.randn(1, self.d_model).to(device)  # the CLS token
-        self.MASK = torch.zeros((1, self.d_model)).to(device)  # the MASK token
+        if CLS is None:
+            # CLS = torch.nn.Parameter(torch.randn(1, self.d_model).to(device))  # the CLS token
+            CLS = torch.randn(1, self.d_model).to(device)
+        self.CLS = CLS # the CLS token
+        if MASK is None:
+            MASK = torch.nn.Parameter(torch.randn((1, self.d_model)).to(device))
+        self.MASK = MASK  # the MASK token
         self.catalogue = embeddings  # the catalogue of embeddings
         # The umBERT architecture
         self.encoder_stack = nn.TransformerEncoder(nn.TransformerEncoderLayer(
@@ -126,6 +131,15 @@ class umBERT3(nn.Module):
     def forward_MLM(self, inputs):
         outputs = self.mask_random_item(inputs)  # mask the items randomly
         outputs = self.add_CLS(outputs)  # add the CLS token at the beginning of each outfit
+        outputs = self.forward(outputs)  # pass the outfits through the encoder stack
+        logits_shoes = self.ffnn_shoes(outputs[:, 1, :])  # compute the logits for the shoes
+        logits_tops = self.ffnn_tops(outputs[:, 2, :])  # compute the logits for the tops
+        logits_acc = self.ffnn_acc(outputs[:, 3, :])  # compute the logits for the accessories
+        logits_bottoms = self.ffnn_bottoms(outputs[:, 4, :])  # compute the logits for the bottoms
+        return logits_shoes, logits_tops, logits_acc, logits_bottoms
+
+    def forward_reconstruction(self, inputs):
+        outputs = self.add_CLS(inputs)  # add the CLS token at the beginning of each outfit
         outputs = self.forward(outputs)  # pass the outfits through the encoder stack
         logits_shoes = self.ffnn_shoes(outputs[:, 1, :])  # compute the logits for the shoes
         logits_tops = self.ffnn_tops(outputs[:, 2, :])  # compute the logits for the tops
