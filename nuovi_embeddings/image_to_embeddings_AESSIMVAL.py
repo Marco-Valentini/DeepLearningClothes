@@ -12,7 +12,7 @@ def image_to_embedding_ANTONIO(dataloader, model, device):
     # get the embeddings
     embeddings = []  # list to store the embeddings
     with torch.no_grad():  # do not calculate the gradients
-        for inputs, _ in tqdm(dataloader):  # iterate over the data
+        for inputs, _ in tqdm(dataloader,colour='blue'):  # iterate over the data
             inputs = inputs.to(device)  # move the input images to the device
             _,outputs = model(inputs)  # forward pass
             embeddings.append(outputs.reshape(outputs.shape[0],-1).cpu().numpy())  # append the embeddings to the list

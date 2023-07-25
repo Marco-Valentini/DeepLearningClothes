@@ -64,10 +64,8 @@ class umBERT3(nn.Module):
         :return: the outfits with the CLS token, a tensor of shape (batch_size, seq_len+1, d_model)
         """
         # create a tensor of shape (batch_size, seq_len+1, d_model)
-        new_inputs = torch.zeros((inputs.shape[0], inputs.shape[1] + 1, inputs.shape[2])).to(device)
-        for i in range(inputs.shape[0]):  # for each outfit in inputsb
-            new_inputs[i] = torch.cat((self.CLS, inputs[i]), 0)  # add the CLS token at the beginning of the outfit
-        return new_inputs
+        CLS = self.CLS.repeat(inputs.shape[0], 1, 1)
+        return  torch.cat((CLS,inputs), dim=1)
 
     def mask_random_item(self, inputs):
         """

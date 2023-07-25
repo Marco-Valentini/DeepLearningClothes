@@ -17,7 +17,7 @@ print("Device used: ", device)
 # define the size of the embeddings
 
 # load thecheckpoint
-checkpoint = torch.load(f'./2023_07_24_trained_fashion_VAE_semplice.pth',map_location=torch.device('cpu'))
+checkpoint = torch.load(f'./2023_07_25_trained_fashion_VAE_con_linear_layers.pth')  # map_location=torch.device('cpu')
 # load the model finetuned_fashion_resnet18_512.pth
 print(f"Loading the trained model")
 model = AutoEncoder()
@@ -49,10 +49,10 @@ print("Computing the embeddings of the dataset")
 embeddings, IDs = image_to_embedding_ANTONIO(dataloaders, model, device)
 print("Embeddings computed")
 print("Saving the embeddings IDs")
-with open("AESSIMVAL_new_IDs_list", "w") as fp:
+with open("AESSIMVAL_with_linear_layers_new_IDs_list", "w") as fp:
     json.dump(IDs, fp)
 print("IDs saved")
 dim_embeddings = embeddings.shape[1]
-with open(f'./SCIUE_new_embeddings_{dim_embeddings}.npy', 'wb') as f:
+with open(f'./SCIUE_with_linear_layers_new_embeddings_1024.npy', 'wb') as f:
     np.save(f, embeddings)
 print("Embeddings saved")

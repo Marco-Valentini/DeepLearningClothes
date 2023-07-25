@@ -34,7 +34,7 @@ print("Loading the image dataset")
 # load the dataset (just for now, we will use the test dataset)
 data_transform = transforms.Compose([  # define the transformations to be applied to the images
     transforms.Resize(256),  # resize the image to 256x256
-    #transforms.CenterCrop(224),  # crop the image to 224x224
+    # transforms.CenterCrop(224),  # crop the image to 224x224
     transforms.ToTensor(),  # convert the image to a tensor
     #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
 ])

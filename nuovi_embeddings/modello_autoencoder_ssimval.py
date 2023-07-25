@@ -1,22 +1,19 @@
+# import the required libraries to define an autoencoder model as seen in the repository https://github.com/VainF/pytorch-msssim/tree/master
 import matplotlib.pyplot as plt
 from datetime import datetime
 from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
 from tqdm import tqdm
 import numpy as np
-
-# define a loss based on ssimval
-class SSIM_Loss(SSIM):
-    def forward(self, img1, img2):
-        return 100*( 1 - super(SSIM_Loss, self).forward(img1, img2) )
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.autograd import Function
 
-
+# define a loss based on ssimval
+class SSIM_Loss(SSIM):
+    def forward(self, img1, img2):
+        return 100*( 1 - super(SSIM_Loss, self).forward(img1, img2) )
 
 class LowerBound(Function):
     @staticmethod
@@ -85,17 +82,18 @@ class AutoEncoder(nn.Module):
         super(AutoEncoder, self).__init__()
         self.encoder = Encoder(C=C, M=M, in_chan=in_chan)
         self.decoder = Decoder(C=C, M=M, out_chan=out_chan)
+        # add linear layers to reduce the dimensionality of the hidden representation
         self.ffnn1 = nn.Linear(128*8*8, 1024)
         self.ffn2 = nn.Linear(1024, 128*8*8)
 
     def forward(self, x, **kargs):
         code = self.encoder(x)  # shape (batch_size, 128, 8, 8)
-        code = code.reshape(code.shape[0], -1) # flatten the hidden representation
+        code = code.reshape(code.shape[0], -1)  # flatten the hidden representation
         code = self.ffnn1(code)  # the hidden representation we will return
         out = self.ffn2(code)
         out = out.reshape(out.shape[0], 128, 8, 8)
         out = self.decoder(out)
-        return out, code
+        return out, code  # return the reconstructed image and the hidden representation
 
 
 class Encoder(nn.Module):
@@ -150,10 +148,11 @@ class Decoder(nn.Module):
 # freeze the given number of layers of the given model
 def freeze(model, n=None):
     """
-    this function freezes the given number of layers of the given model in order to fine-tune it.
+    This function freezes the given number of layers of the given model in order to fine-tune it.
     :param model: the model to be frozen
     :param n: the number of layers to be frozen, if None, all the layers are frozen
     :return: the frozen model
+    #TODO non usata si può togliere
     """
     if n is None:
         for param in model.parameters():
@@ -176,6 +175,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
     :param device: the device to be used
     :param num_epochs: the number of epochs to train the model
     :return: the fine-tuned model
+    # TODO cambia il nome qua
     """
 
     # freeze parameters of the pre-trained model
@@ -207,7 +207,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
                 optimizer.zero_grad()  # zero the parameter gradients
 
                 with torch.set_grad_enabled(phase == 'train'):  # only calculate the gradients if training
-                    outputs = model(inputs)  # forward pass
+                    outputs,_ = model(inputs)  # forward pass
                     ssm_loss = criterion(outputs, inputs)
                     loss = ssm_loss  # calculate the loss
 
@@ -233,11 +233,12 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
                     torch.save(checkpoint, f'./{dt_string}_trained_fashion_VAE_con_linear_layers.pth')
                     valid_loss_min = epoch_loss
                     best_model = model
+                    early_stopping = 0
                 else:
                     early_stopping += 1
-            if early_stopping == 5:
-                print('Early stopping!')
-                break
+        if early_stopping == 5:
+            print('Early stopping!')
+            break
     plt.plot(train_loss, label='train_total')
     plt.plot(val_loss, label='val_total')
     plt.legend()

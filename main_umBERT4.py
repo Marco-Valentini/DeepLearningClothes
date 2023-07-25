@@ -9,14 +9,11 @@ from matplotlib import pyplot as plt
 from BERT_architecture.umBERT3 import umBERT3 as umBERT
 from hyperopt import Trials, hp, fmin, tpe, STATUS_OK
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import Adam, AdamW
 from lion_pytorch import Lion
 from torch.nn import CrossEntropyLoss, CosineEmbeddingLoss, CosineSimilarity
 from datetime import datetime
-from tqdm import tqdm
-
 from constants import API_TOKEN
 
 
@@ -40,7 +37,8 @@ def create_tensor_dataset_from_dataframe(df_outfit: pd.DataFrame, embeddings, id
             dataset[i, j, :] = embedding
     return torch.Tensor(dataset)
 
-def find_closest_embeddings(recons_embeddings, embeddings):
+
+def find_closest_embeddings(recons_embeddings, embeddings, IDs_list):
     """
     Find the closest embeddings in the catalogue to the reconstructed embeddings
     :param recons_embeddings: the reconstructed embeddings (tensor) (shape: (batch_size, embedding_size))
@@ -48,8 +46,8 @@ def find_closest_embeddings(recons_embeddings, embeddings):
     """
     # TODO valutare se invece si usa una euclidean distance cosa succede
     embeddings = torch.from_numpy(embeddings).to(device)  # convert to tensor
-    with open('./reduced_data/IDs_list') as f:
-        IDs_list = json.load(f)
+    # with open('./reduced_data/IDs_list') as f:
+    #     IDs_list = json.load(f)
     closest_embeddings = []
     cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
     for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
@@ -61,36 +59,36 @@ def find_closest_embeddings(recons_embeddings, embeddings):
         closest_embedding = embeddings[idx, :]
         # append the closest embedding to the list
         closest_embeddings.append(IDs_list[idx])
-    return torch.Tensor(closest_embeddings).to(device)
+    return torch.LongTensor(closest_embeddings).to(device)
 
 
-def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict,masked_positions, topk=10):
+def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_positions, topk=10):
     embeddings_shoes = embeddings_dict['shoes']
     embeddings_tops = embeddings_dict['tops']
     embeddings_accessories = embeddings_dict['accessories']
     embeddings_bottoms = embeddings_dict['bottoms']
     closest_embeddings = []
     cosine_similarity = CosineSimilarity(dim=1)
-    for i,pos in tqdm(enumerate(masked_positions)):
+    for i, pos in enumerate(masked_positions):
         if pos == 0:  # shoes
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
             similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_shoes).to(device))
             idx = torch.topk(similarities, k=topk).indices
             idx = idx.tolist()
             closest = [shoes_IDs[j] for j in idx]
-        elif pos == 1: #tops
+        elif pos == 1:  # tops
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
             similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_tops).to(device))
             idx = torch.topk(similarities, k=topk).indices
             idx = idx.tolist()
             closest = [tops_IDs[j] for j in idx]
-        elif pos == 2: # accessories
+        elif pos == 2:  # accessories
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
             similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_accessories).to(device))
             idx = torch.topk(similarities, k=topk).indices
             idx = idx.tolist()
             closest = [accessories_IDs[j] for j in idx]
-        elif pos == 3: # bottoms
+        elif pos == 3:  # bottoms
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
             similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_bottoms).to(device))
             idx = torch.topk(similarities, k=topk).indices
@@ -132,8 +130,10 @@ def pre_train_BC(model, dataloaders, optimizer, criterion, n_epochs, run):
 
             running_loss = 0.0  # keep track of the loss
             accuracy_CLF = 0.0  # keep track of the accuracy of the classification task
-
-            for inputs, labels in tqdm(dataloaders[phase]):  # for each batch
+            # batch_number = 0
+            for inputs, labels in dataloaders[phase]:  # for each batch
+                # print(f'Batch: {batch_number}/{len(dataloaders[phase])}')
+                # batch_number += 1
                 inputs = inputs.to(device)  # move the data to the device
                 labels_CLF = labels.type(torch.LongTensor).to(device)  # move the labels_CLF to the device
                 # do a one-hot encoding of the labels of the classification task and move them to the device
@@ -217,7 +217,8 @@ def pre_train_BC(model, dataloaders, optimizer, criterion, n_epochs, run):
     return best_model, valid_loss_min
 
 
-def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs, run):
+def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs, run, shoes_IDs, tops_IDs,
+                             accessories_IDs, bottoms_IDs):
     """
     This function performs the pre-training of the umBERT model on the MLM task.
     :param model: the umBERT model
@@ -251,7 +252,10 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
             accuracy_tops = 0.0  # keep track of the accuracy of tops classification task
             accuracy_acc = 0.0  # keep track of the accuracy of accessories classification task
             accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
-            for inputs, labels in tqdm(dataloaders[phase]):  # for each batch
+            # batch_number = 0
+            for inputs, labels in dataloaders[phase]:  # for each batch
+                # print(f'Batch: {batch_number}/{len(dataloaders[phase])}')
+                # batch_number += 1
                 inputs = inputs.to(device)  # move the input tensors to the GPU
                 # labels are the IDs of the items in the outfit
                 labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
@@ -271,7 +275,8 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                     loss_acc = criterion(logits_acc, inputs[:, 2, :], target)  # compute the loss for accessories
                     loss_bottoms = criterion(logits_bottoms, inputs[:, 3, :], target)  # compute the loss for bottoms
                     # TODO chiedi se dividere o no per 4
-                    loss = (loss_shoes + loss_tops + loss_acc + loss_bottoms) / 4  # compute the total loss and normalize it
+                    loss = (
+                                       loss_shoes + loss_tops + loss_acc + loss_bottoms) / 4  # compute the total loss and normalize it
 
                     if phase == 'train':
                         # loss_shoes.backward()  # compute the gradients of the loss
@@ -285,16 +290,16 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                 running_loss += loss.item() * inputs.size(0)
 
                 # compute the closest embeddings to the reconstructed embeddings
-                pred_shoes = find_closest_embeddings(logits_shoes, model.catalogue)
-                pred_tops = find_closest_embeddings(logits_tops, model.catalogue)
-                pred_acc = find_closest_embeddings(logits_acc, model.catalogue)
-                pred_bottoms = find_closest_embeddings(logits_bottoms, model.catalogue)
+                pred_shoes = find_closest_embeddings(logits_shoes, model.catalogue_dict['shoes'], shoes_IDs)
+                pred_tops = find_closest_embeddings(logits_tops, model.catalogue_dict['tops'], tops_IDs)
+                pred_acc = find_closest_embeddings(logits_acc, model.catalogue_dict['accessories'], accessories_IDs)
+                pred_bottoms = find_closest_embeddings(logits_bottoms, model.catalogue_dict['bottoms'], bottoms_IDs)
 
                 # update the accuracy of the reconstruction task
-                accuracy_shoes += np.sum(pred_shoes.cpu().numpy() == labels_shoes.cpu().numpy())
-                accuracy_tops += np.sum(pred_tops.cpu().numpy() == labels_tops.cpu().numpy())
-                accuracy_acc += np.sum(pred_acc.cpu().numpy() == labels_acc.cpu().numpy())
-                accuracy_bottoms += np.sum(pred_bottoms.cpu().numpy() == labels_bottoms.cpu().numpy())
+                accuracy_shoes += np.sum(pred_shoes.int().cpu().numpy() == labels_shoes.cpu().numpy())
+                accuracy_tops += np.sum(pred_tops.int().cpu().numpy() == labels_tops.cpu().numpy())
+                accuracy_acc += np.sum(pred_acc.int().cpu().numpy() == labels_acc.cpu().numpy())
+                accuracy_bottoms += np.sum(pred_bottoms.int().cpu().numpy() == labels_bottoms.cpu().numpy())
 
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
@@ -304,7 +309,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
             epoch_accuracy_acc = accuracy_acc / len(dataloaders[phase].dataset)
             epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
             epoch_accuracy_reconstruction = (
-                                         epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+                                                    epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
 
             if run is not None:
                 run[f"{phase}/epoch/loss"].append(epoch_loss)
@@ -332,7 +337,8 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                     print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
                         valid_loss_min,
                         epoch_loss))
-                    print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(epoch_accuracy_reconstruction))
+                    print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
+                        epoch_accuracy_reconstruction))
                     # save a checkpoint dictionary containing the model state_dict
                     checkpoint = {'d_model': model.d_model,
                                   'num_encoders': model.num_encoders,
@@ -343,7 +349,8 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                     # save the checkpoint dictionary to a file
                     now = datetime.now()
                     dt_string = now.strftime("%Y_%m_%d")
-                    torch.save(checkpoint, f'./models/{dt_string}_umBERT4_pre_trained_reconstruction_{model.d_model}.pth')
+                    torch.save(checkpoint,
+                               f'./models/{dt_string}_umBERT4_pre_trained_reconstruction_{model.d_model}.pth')
                     valid_loss_min = epoch_loss  # update the minimum validation loss
                     early_stopping = 0  # reset early stopping counter
                     best_model = model
@@ -398,8 +405,10 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
 
             running_loss = 0.0  # keep track of the loss
             hit_ratio = 0.0  # keep track of the accuracy of the fill in the blank task
-
-            for inputs, labels in tqdm(dataloaders[phase]):  # for each batch
+            # batch_number = 0
+            for inputs, labels in dataloaders[phase]:  # for each batch
+                # print(f'Batch: {batch_number}/{len(dataloaders[phase])}')
+                # batch_number += 1
                 inputs = inputs.to(device)  # move the input tensors to the GPU
                 # labels are the IDs of the items in the outfit
                 labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
@@ -436,7 +445,8 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
                 # predictions = find_closest_embeddings(masked_logits, model.catalogue)
 
                 #  implement top-k accuracy
-                top_k_predictions = find_top_k_closest_embeddings(masked_logits, model.catalogue_dict,masked_positions, topk=10)
+                top_k_predictions = find_top_k_closest_embeddings(masked_logits, model.catalogue_dict, masked_positions,
+                                                                  topk=10)
 
                 masked_IDs = []
 
@@ -456,7 +466,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             # compute the average accuracy of the fill in the blank task of the epoch
-            epoch_hit_ratio = hit_ratio #/ len(dataloaders[phase].dataset) # TODO valuta per cosa dividi qui
+            epoch_hit_ratio = hit_ratio  # / len(dataloaders[phase].dataset) # TODO valuta per cosa dividi qui
             print(f"length of masked IDs {len(masked_IDs)}")
             print(f"Length of dataset {len(dataloaders[phase].dataset)}")
 
@@ -512,6 +522,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, run):
     plt.show()
     return best_model, valid_loss_min
 
+
 # set the seed for reproducibility
 random.seed(42)
 np.random.seed(42)
@@ -519,7 +530,7 @@ torch.manual_seed(42)
 torch.use_deterministic_algorithms(True)
 SEED = 42
 
-dim_embeddings = 64
+# dim_embeddings = 64
 
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -534,43 +545,48 @@ print('Device used: ', device)
 print('Loading the compatibility dataset...')
 df = pd.read_csv('./reduced_data/reduced_compatibility.csv')
 # balance the 2 classes of compatibility by removing some of the non-compatible outfits
-#df = pd.concat([df[df['compatibility'] == 1], df[df['compatibility'] == 0].sample(n=df[df['compatibility'] == 1].shape[0], random_state=42)], axis=0)
+# df = pd.concat([df[df['compatibility'] == 1], df[df['compatibility'] == 0].sample(n=df[df['compatibility'] == 1].shape[0], random_state=42)], axis=0)
 df.reset_index(drop=True, inplace=True)
 print('Compatibility dataset loaded!')
 # load the IDs of the images
-with open("nuovi_embeddings/AESSIMVAL_new_IDs_list", "r") as fp:
+with open("./nuovi_embeddings/AESSIMVAL_with_linear_layers_new_IDs_list", "r") as fp:
     IDs = json.load(fp)
 # load the embeddings
-with open(f'./nuovi_embeddings/SCIUE_new_embeddings_8192.npy', 'rb') as f:
+with open(f'./nuovi_embeddings/SCIUE_with_linear_layers_new_embeddings_1024.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # compute the IDs of the shoes in the outfits
 shoes_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_1'].unique()}
-shoes_positions = np.array(list(shoes_mapping.keys())) # these are the positions with respect to the ID list and so in the embeddings matrix
-shoes_IDs = np.array(list(shoes_mapping.values())) # these are the IDs of the shoes in the outfits
+shoes_positions = np.array(
+    list(shoes_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
+shoes_IDs = np.array(list(shoes_mapping.values()))  # these are the IDs of the shoes in the outfits
 
 embeddings_shoes = embeddings[shoes_positions]
 # compute the IDs of the tops in the outfits
 tops_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_2'].unique()}
-tops_positions = np.array(list(tops_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
+tops_positions = np.array(
+    list(tops_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
 tops_IDs = np.array(list(tops_mapping.values()))
 
 embeddings_tops = embeddings[np.array(tops_positions)]
 # compute the IDs of the accessories in the outfits
 accessories_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_3'].unique()}
-accessories_positions = np.array(list(accessories_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
+accessories_positions = np.array(list(
+    accessories_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
 accessories_IDs = np.array(list(accessories_mapping.values()))
 
 embeddings_accessories = embeddings[accessories_positions]
 
 # compute the IDs of the bottoms in the outfits
 bottoms_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_4'].unique()}
-bottoms_positions = np.array(list(bottoms_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
+bottoms_positions = np.array(
+    list(bottoms_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
 bottoms_IDs = np.array(list(bottoms_mapping.values()))
 
 embeddings_bottoms = embeddings[bottoms_positions]
 
-embeddings_dict = {'shoes': embeddings_shoes, 'tops' : embeddings_tops, 'accessories' : embeddings_accessories, 'bottoms' : embeddings_bottoms}
+embeddings_dict = {'shoes': embeddings_shoes, 'tops': embeddings_tops, 'accessories': embeddings_accessories,
+                   'bottoms': embeddings_bottoms}
 # split the dataset in train, valid and test set (80%, 10%, 10%) in a stratified way on the compatibility column
 print("Creating the datasets for BC pre-training...")
 
@@ -578,24 +594,29 @@ df_train, df_test = train_test_split(df, test_size=0.2,
                                      stratify=df['compatibility'],
                                      random_state=42,
                                      shuffle=True)
-df_train.reset_index(drop=True,inplace=True)
-df_test.reset_index(drop=True,inplace=True)
+df_train.reset_index(drop=True, inplace=True)
+df_test.reset_index(drop=True, inplace=True)
 
-df_train_only_compatible = df_train[df_train['compatibility'] == 1].drop(columns='compatibility') # only the compatible outfits from the df_train
-df_test_only_compatible = df_test[df_test['compatibility'] == 1].drop(columns='compatibility') # only the compatible outfits from the df_test
+df_train_only_compatible = df_train[df_train['compatibility'] == 1].drop(
+    columns='compatibility')  # only the compatible outfits from the df_train
+df_test_only_compatible = df_test[df_test['compatibility'] == 1].drop(
+    columns='compatibility')  # only the compatible outfits from the df_test
 
-compatibility_train = df_train['compatibility'].values # compatibility labels for the tarin dataframe
-compatibility_test = df_test['compatibility'].values # compatiblility labels for the test dataframe
+compatibility_train = df_train['compatibility'].values  # compatibility labels for the tarin dataframe
+compatibility_test = df_test['compatibility'].values  # compatiblility labels for the test dataframe
 df_train.drop(columns='compatibility', inplace=True)
 df_test.drop(columns='compatibility', inplace=True)
 
-
-tensor_dataset_train = create_tensor_dataset_from_dataframe(df_train,embeddings,IDs)
-tensor_dataset_test = create_tensor_dataset_from_dataframe(df_test,embeddings,IDs)
+tensor_dataset_train = create_tensor_dataset_from_dataframe(df_train, embeddings, IDs)
+tensor_dataset_test = create_tensor_dataset_from_dataframe(df_test, embeddings, IDs)
 # compute the CLS as the average of the embeddings of the items in the outfit
 # TODO controlla in debug se è giusto
-compatible_mean = torch.cat((tensor_dataset_train[compatibility_train == 1,:,:], tensor_dataset_test[compatibility_test == 1,:,:]),dim=0).mean(dim=1).mean(dim=0)
-not_compatible_mean = torch.cat((tensor_dataset_train[compatibility_train == 0,:,:], tensor_dataset_test[compatibility_test == 0,:,:]),dim=0).mean(dim=1).mean(dim=0)
+compatible_mean = torch.cat(
+    (tensor_dataset_train[compatibility_train == 1, :, :], tensor_dataset_test[compatibility_test == 1, :, :]),
+    dim=0).mean(dim=1).mean(dim=0)
+not_compatible_mean = torch.cat(
+    (tensor_dataset_train[compatibility_train == 0, :, :], tensor_dataset_test[compatibility_test == 0, :, :]),
+    dim=0).mean(dim=1).mean(dim=0)
 
 # CLS = torch.mean(torch.stack((compatible_mean,not_compatible_mean)),dim=0).unsqueeze(0)
 # MASK = compatible_mean.unsqueeze(0)
@@ -608,17 +629,18 @@ print("dataset for BC created")
 # create the dataloaders
 print("creating dataloaders for the pre-training...")
 train_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_train, torch.Tensor(compatibility_train)),
-                                              batch_size=1, shuffle=True, num_workers=0)
+                                              batch_size=16, shuffle=True, num_workers=0)
 valid_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_valid, torch.Tensor(compatibility_valid)),
-                                              batch_size=1, shuffle=True, num_workers=0)
+                                              batch_size=16, shuffle=True, num_workers=0)
 test_dataloader_pre_training_BC = DataLoader(TensorDataset(tensor_dataset_test, torch.Tensor(compatibility_test)),
-                                             batch_size=1, shuffle=True, num_workers=0)
-dataloaders_BC = {'train': train_dataloader_pre_training_BC, 'val': valid_dataloader_pre_training_BC, 'test': test_dataloader_pre_training_BC}
+                                             batch_size=16, shuffle=True, num_workers=0)
+dataloaders_BC = {'train': train_dataloader_pre_training_BC, 'val': valid_dataloader_pre_training_BC,
+                  'test': test_dataloader_pre_training_BC}
 print("dataloaders for pre-training task #1 created!")
 
 print("create the dataloader for task #2")
-tensor_dataset_train_2 = create_tensor_dataset_from_dataframe(df_train_only_compatible,embeddings,IDs)
-tensor_dataset_test_2 = create_tensor_dataset_from_dataframe(df_test_only_compatible,embeddings,IDs)
+tensor_dataset_train_2 = create_tensor_dataset_from_dataframe(df_train_only_compatible, embeddings, IDs)
+tensor_dataset_test_2 = create_tensor_dataset_from_dataframe(df_test_only_compatible, embeddings, IDs)
 
 tensor_dataset_train_2, tensor_dataset_valid_2, df_train_only_compatible, df_valid_only_compatible = train_test_split(
     tensor_dataset_train_2, df_train_only_compatible, test_size=0.2, random_state=42, shuffle=True)
@@ -626,15 +648,25 @@ tensor_dataset_train_2, tensor_dataset_valid_2, df_train_only_compatible, df_val
 print("dataset for task #2 and #3 created")
 # create the dataloaders
 print("Creating dataloaders for the pre-training task #2...")
-train_dataloader_pre_training_reconstruction = DataLoader(TensorDataset(tensor_dataset_train_2, torch.Tensor(df_train_only_compatible.values)),
-                                              batch_size=1, shuffle=True, num_workers=0)
-valid_dataloader_pre_training_reconstruction = DataLoader(TensorDataset(tensor_dataset_valid_2, torch.Tensor(df_valid_only_compatible.values)),
-                                              batch_size=1, shuffle=True, num_workers=0)
-test_dataloader_pre_training_reconstruction = DataLoader(TensorDataset(tensor_dataset_test_2, torch.Tensor(df_test_only_compatible.values)),
-                                             batch_size=1, shuffle=True, num_workers=0)
-dataloaders_reconstruction = {'train': train_dataloader_pre_training_reconstruction, 'val': valid_dataloader_pre_training_reconstruction, 'test': test_dataloader_pre_training_reconstruction}
+list_ID_train = [list(df_train_only_compatible['item_1'].values), list(df_train_only_compatible['item_2'].values),
+                 list(df_train_only_compatible['item_3'].values), list(df_train_only_compatible['item_4'].values)]
+list_ID_valid = [list(df_valid_only_compatible['item_1'].values), list(df_valid_only_compatible['item_2'].values),
+                 list(df_valid_only_compatible['item_3'].values), list(df_valid_only_compatible['item_4'].values)]
+list_ID_test = [list(df_test_only_compatible['item_1'].values), list(df_test_only_compatible['item_2'].values),
+                list(df_test_only_compatible['item_3'].values), list(df_test_only_compatible['item_4'].values)]
+train_dataloader_pre_training_reconstruction = DataLoader(
+    TensorDataset(tensor_dataset_train_2, torch.LongTensor(df_train_only_compatible.values)),
+    batch_size=16, shuffle=True, num_workers=0)
+valid_dataloader_pre_training_reconstruction = DataLoader(
+    TensorDataset(tensor_dataset_valid_2, torch.LongTensor(df_valid_only_compatible.values)),
+    batch_size=16, shuffle=True, num_workers=0)
+test_dataloader_pre_training_reconstruction = DataLoader(
+    TensorDataset(tensor_dataset_test_2, torch.LongTensor(df_test_only_compatible.values)),
+    batch_size=16, shuffle=True, num_workers=0)
+dataloaders_reconstruction = {'train': train_dataloader_pre_training_reconstruction,
+                              'val': valid_dataloader_pre_training_reconstruction,
+                              'test': test_dataloader_pre_training_reconstruction}
 print("dataloaders for pre-training task #2 created!")
-
 
 # define the space in which to search for the hyperparameters
 ### hyperparameters tuning ###
@@ -642,10 +674,10 @@ print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
 max_evals = 10
 # define the search space
-possible_learning_rates_pre_training = [1e-3,1e-2,1e-1]
-possible_learning_rates_fine_tuning = [1e-5,1e-4,1e-3,1e-2]
-possible_n_heads = [1, 2, 4]
-possible_n_encoders = [1,3,6]
+possible_learning_rates_pre_training = [1e-3, 1e-2, 1e-1]
+possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3, 1e-2]
+possible_n_heads = [1, 2, 4,8]
+possible_n_encoders = [1, 3, 6,9,12]
 possible_n_epochs_pretrainig = [50, 100, 200]
 possible_n_epochs_finetuning = [20, 50, 100]
 possible_optimizers = [Adam, AdamW, Lion]
@@ -677,7 +709,7 @@ baeyes_trials = Trials()
 def objective(params):
     print(f"Trainig with params: {params}")
     # define the model
-    model = umBERT(embeddings=embeddings,embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
+    model = umBERT(embeddings=embeddings, embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
                    num_heads=params['num_heads'], dropout=params['dropout'])
     model.to(device)  # move the model to the device
     print(f"model loaded on {device}")
@@ -689,20 +721,23 @@ def objective(params):
     # model.load_state_dict(checkpoint['model_state_dict'])
     print("model parameters loaded")
 
-    optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
-    # optimizer1 = torch.optim.SGD(params=model.parameters(), lr=params['lr1'], momentum=0.9, weight_decay=0.01)
+    # optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+    optimizer1 = torch.optim.SGD(params=model.parameters(), lr=params['lr1'], momentum=0.9, weight_decay=0.01)
     criterion1 = CrossEntropyLoss()
     model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, optimizer=optimizer1,
                                        criterion=criterion1, n_epochs=params['n_epochs_1'], run=None)
 
-    #pre-train on task #2
-    #define the optimizer
+    # pre-train on task #2
+    # define the optimizer
     print("Starting pre-training the model on task #2...")
     optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
     criterion2 = CosineEmbeddingLoss()
-    model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer2,
-                                         criterion=criterion2, n_epochs=params['n_epochs_2'], run=None)
-
+    model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
+                                                               optimizer=optimizer2,
+                                                               criterion=criterion2, n_epochs=params['n_epochs_2'],
+                                                               shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
+                                                               accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
+                                                               run=None)
 
     # fine-tune on task #3
     # define the optimizer
@@ -711,10 +746,12 @@ def objective(params):
     criterion3 = CosineEmbeddingLoss()
     model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer3,
                                            criterion=criterion3, n_epochs=params['n_epochs_3'], run=None)
+    best_loss_BC = 0
     # compute the weighted sum of the losses
     loss = best_loss_BC + best_loss_reconstruction + best_loss_fine_tune
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
+
 
 # optimize
 best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals,
@@ -736,6 +773,7 @@ params = {
     'optimizer2': possible_optimizers[best['optimizer2']],
     'optimizer3': possible_optimizers[best['optimizer3']]
 }
+print(f"Best hyperparameters found: {params}")
 
 # define the model
 model = umBERT(embeddings=embeddings, embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
@@ -752,8 +790,10 @@ model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, opti
 # define the optimizer
 optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
 criterion2 = CosineEmbeddingLoss()
-model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer2,
-                                     criterion=criterion2, n_epochs=params['n_epochs_2'], run=None)
+model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
+                                                           optimizer=optimizer2,
+                                                           criterion=criterion2, n_epochs=params['n_epochs_2'],
+                                                           run=None)
 # fine-tune on task #3
 # define the optimizer
 optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
@@ -765,7 +805,3 @@ print(f"Best loss BC: {best_loss_BC}")
 print(f"Best loss reconstruction: {best_loss_reconstruction}")
 print(f"Best loss fine-tune: {best_loss_fine_tune}")
 print("THE END")
-
-
-
-
