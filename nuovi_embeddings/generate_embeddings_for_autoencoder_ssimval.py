@@ -20,7 +20,7 @@ device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
 
-# load thecheckpoint
+# load the checkpoint
 checkpoint = torch.load(f'./2023_07_27_trained_fashion_VAE_128.pth')  # map_location=torch.device('cpu')
 # load the model finetuned_fashion_resnet18_512.pth
 print(f"Loading the trained model")
