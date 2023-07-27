@@ -67,7 +67,7 @@ dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader}
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 2
+max_evals = 25
 # define the search space
 possible_learning_rates_pre_training = [1e-5,1e-4,1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
