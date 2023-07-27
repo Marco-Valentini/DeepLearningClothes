@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from copy import deepcopy
 
 from torch.autograd import Function
 
@@ -76,23 +77,17 @@ class GDN(nn.Module):
 
 
 # https://arxiv.org/pdf/1611.01704.pdf
-# A simplfied version without quantization
+# A simplified version without quantization
 class AutoEncoder(nn.Module):
     def __init__(self, C=128, M=128, in_chan=3, out_chan=3):
         super(AutoEncoder, self).__init__()
         self.encoder = Encoder(C=C, M=M, in_chan=in_chan)
         self.decoder = Decoder(C=C, M=M, out_chan=out_chan)
-        # add linear layers to reduce the dimensionality of the hidden representation
-        self.ffnn1 = nn.Linear(128*8*8, 1024)
-        self.ffn2 = nn.Linear(1024, 128*8*8)
 
     def forward(self, x, **kargs):
         code = self.encoder(x)  # shape (batch_size, 128, 8, 8)
-        code = code.reshape(code.shape[0], -1)  # flatten the hidden representation
-        code = self.ffnn1(code)  # the hidden representation we will return
-        out = self.ffn2(code)
-        out = out.reshape(out.shape[0], 128, 8, 8)
-        out = self.decoder(out)
+        # the hidden representation we will return
+        out = self.decoder(code)
         return out, code  # return the reconstructed image and the hidden representation
 
 
@@ -112,7 +107,15 @@ class Encoder(nn.Module):
             nn.Conv2d(in_channels=M, out_channels=M, kernel_size=5, stride=2, padding=2, bias=False),
             GDN(M),
 
-            nn.Conv2d(in_channels=M, out_channels=C, kernel_size=5, stride=2, padding=2, bias=False)
+            nn.Conv2d(in_channels=M, out_channels=C, kernel_size=5, stride=2, padding=2, bias=False),
+
+            nn.Flatten(start_dim=1), # flatten the hidden representation
+
+            nn.Linear(128*8*8, 1024),
+
+            nn.ReLU(),
+
+            nn.Linear(1024,128)
         )
 
     def forward(self, x):
@@ -126,6 +129,15 @@ class Decoder(nn.Module):
     def __init__(self, C=32, M=128, out_chan=3):
         super(Decoder, self).__init__()
         self.dec = nn.Sequential(
+
+            nn.Linear(128, 1024),
+
+            nn.ReLU(),
+
+            nn.Linear(1024, 128*8*8),
+
+            nn.Unflatten(1, (128, 8, 8)),
+
             nn.ConvTranspose2d(in_channels=C, out_channels=M, kernel_size=5, stride=2, padding=2, output_padding=1,
                                bias=False),
             GDN(M, inverse=True),
@@ -187,7 +199,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
     train_loss = []  # keep track of the loss of the training phase
     val_loss = []  # keep track of the loss of the validation phase
     valid_loss_min = np.Inf  # track change in validation loss
-    best_model = model  # keep track of the best model
+    best_model = deepcopy(model)  # keep track of the best model
     early_stopping = 0  # keep track of the number of epochs without improvement
     for epoch in range(num_epochs):
         for phase in ['train', 'val']:  # train and validate the model
@@ -232,7 +244,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
                     dt_string = now.strftime("%Y_%m_%d")
                     torch.save(checkpoint, f'./{dt_string}_trained_fashion_VAE_con_linear_layers.pth')
                     valid_loss_min = epoch_loss
-                    best_model = model
+                    best_model = deepcopy(model)
                     early_stopping = 0
                 else:
                     early_stopping += 1

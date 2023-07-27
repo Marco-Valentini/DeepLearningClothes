@@ -13,7 +13,7 @@ class umBERT3(nn.Module):
     ffnn (one for each category) to predict not only the masked item (MLM task) but also the non-masked ones (reconstruction task).
     """
 
-    def __init__(self, embeddings, embeddings_dict, num_encoders=6, num_heads=1, dropout=0, CLS =None,MASK = None,dim_feedforward=None):
+    def __init__(self, embeddings, embeddings_dict, num_encoders=6, num_heads=1, dropout=0, CLS =None,MASK_dict = None,dim_feedforward=None):
         """
         the constructor of the class umBERT2
         :param embeddings: the catalogue of the embeddings
@@ -36,9 +36,10 @@ class umBERT3(nn.Module):
             # CLS = torch.nn.Parameter(torch.randn(1, self.d_model).to(device))  # the CLS token
             CLS = torch.randn(1, self.d_model).to(device)
         self.CLS = CLS # the CLS token
-        if MASK is None:
-            MASK = torch.nn.Parameter(torch.randn((1, self.d_model)).to(device))
-        self.MASK = MASK  # the MASK token
+        if MASK_dict is None:
+            MASK_dict = {'shoes':torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)), 'tops':torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)),
+                         'accessories': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)), 'bottoms': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device))}
+        self.MASK_dict = MASK_dict  # the MASK token
         self.catalogue = embeddings  # the catalogue of embeddings
         # The umBERT architecture
         self.encoder_stack = nn.TransformerEncoder(nn.TransformerEncoderLayer(
@@ -50,10 +51,30 @@ class umBERT3(nn.Module):
             batch_first=True,  # Set batch_first to True
         ), num_layers=num_encoders,
             enable_nested_tensor=(num_heads % 2 == 0))  # the encoder stack is a transformer encoder stack
-        self.ffnn_shoes = nn.Linear(self.d_model, self.d_model)  # for prediction of the first item in the outfit
-        self.ffnn_tops = nn.Linear(self.d_model, self.d_model)  # for prediction of the second item in the outfit
-        self.ffnn_acc = nn.Linear(self.d_model, self.d_model)  # for prediction of the third item in the outfit
-        self.ffnn_bottoms = nn.Linear(self.d_model, self.d_model)  # for prediction of the fourth item in the outfit
+        # self.ffnn_shoes = nn.Linear(self.d_model, self.d_model)  # for prediction of the first item in the outfit
+        # self.ffnn_tops = nn.Linear(self.d_model, self.d_model)  # for prediction of the second item in the outfit
+        # self.ffnn_acc = nn.Linear(self.d_model, self.d_model)  # for prediction of the third item in the outfit
+        # self.ffnn_bottoms = nn.Linear(self.d_model, self.d_model)  # for prediction of the fourth item in the outfit
+        self.dec_shoes = nn.Sequential(
+            nn.Linear(self.d_model, self.d_model*2),
+            nn.ReLU(),
+            nn.Linear(self.d_model*2, self.d_model)
+        )
+        self.dec_tops = nn.Sequential(
+            nn.Linear(self.d_model, self.d_model*2),
+            nn.ReLU(),
+            nn.Linear(self.d_model*2, self.d_model)
+        )
+        self.dec_acc = nn.Sequential(
+            nn.Linear(self.d_model, self.d_model*2),
+            nn.ReLU(),
+            nn.Linear(self.d_model*2, self.d_model)
+        )
+        self.dec_bottoms = nn.Sequential(
+            nn.Linear(self.d_model, self.d_model*2),
+            nn.ReLU(),
+            nn.Linear(self.d_model*2, self.d_model)
+        )
         self.softmax = F.softmax  # the output of the linear layer is fed to a softmax layer
         self.Binary_Classifier = nn.Linear(self.d_model, 2)  # second task: binary classification
 
@@ -109,7 +130,14 @@ class umBERT3(nn.Module):
                 # mask the item at position j
                 masked_positions.append(j)  # add the position of the masked item to the list
                 masked_items.append(inputs[i][j])  # add the masked item to the list
-                outputs[i * 4 + j][j] = self.MASK  # mask the chosen item
+                if j == 0:  # if the masked item is a shoe
+                    outputs[i * 4 + j][j] = self.MASK_dict['shoes']  # mask the chosen item
+                elif j == 1:  # if the masked item is a top
+                    outputs[i * 4 + j][j] = self.MASK_dict['tops']  # mask the chosen item
+                elif j == 2:  # if the masked item is an accessory
+                    outputs[i * 4 + j][j] = self.MASK_dict['accessories']  # mask the chosen item
+                elif j == 3:  # if the masked item is a bottom
+                    outputs[i * 4 + j][j] = self.MASK_dict['bottoms']  # mask the chosen item
         return outputs, masked_positions, masked_items
 
     def forward(self, outfits):
@@ -137,22 +165,22 @@ class umBERT3(nn.Module):
         return logits_shoes, logits_tops, logits_acc, logits_bottoms
 
     def forward_reconstruction(self, inputs):
-        outputs = self.add_CLS(inputs)  # add the CLS token at the beginning of each outfit
-        outputs = self.forward(outputs)  # pass the outfits through the encoder stack
-        logits_shoes = self.ffnn_shoes(outputs[:, 1, :])  # compute the logits for the shoes
-        logits_tops = self.ffnn_tops(outputs[:, 2, :])  # compute the logits for the tops
-        logits_acc = self.ffnn_acc(outputs[:, 3, :])  # compute the logits for the accessories
-        logits_bottoms = self.ffnn_bottoms(outputs[:, 4, :])  # compute the logits for the bottoms
+        # outputs = self.add_CLS(inputs)  # add the CLS token at the beginning of each outfit
+        outputs = self.forward(inputs)  # pass the outfits through the encoder stack
+        logits_shoes = self.dec_shoes(outputs[:, 0, :])  # compute the logits for the shoes
+        logits_tops = self.dec_tops(outputs[:, 1, :])  # compute the logits for the tops
+        logits_acc = self.dec_acc(outputs[:, 2, :])  # compute the logits for the accessories
+        logits_bottoms = self.dec_bottoms(outputs[:, 3, :])  # compute the logits for the bottoms
         return logits_shoes, logits_tops, logits_acc, logits_bottoms
 
     def forward_fill_in_the_blank(self, inputs):
         outputs, masked_positions, masked_items = self.fill_in_the_blank_masking(inputs)  # mask the items
-        outputs = self.add_CLS(outputs)  # add the CLS token at the beginning of each outfit
+        #outputs = self.add_CLS(outputs)  # add the CLS token at the beginning of each outfit
         outputs = self.forward(outputs)  # pass the outfits through the encoder stack
-        logits_shoes = self.ffnn_shoes(outputs[:, 1, :])  # compute the logits for the shoes
-        logits_tops = self.ffnn_tops(outputs[:, 2, :])  # compute the logits for the tops
-        logits_acc = self.ffnn_acc(outputs[:, 3, :])  # compute the logits for the accessories
-        logits_bottoms = self.ffnn_bottoms(outputs[:, 4, :])  # compute the logits for the bottoms
+        logits_shoes = self.dec_shoes(outputs[:, 0, :])  # compute the logits for the shoes
+        logits_tops = self.dec_tops(outputs[:, 1, :])  # compute the logits for the tops
+        logits_acc = self.dec_acc(outputs[:, 2, :])  # compute the logits for the accessories
+        logits_bottoms = self.dec_bottoms(outputs[:, 3, :])  # compute the logits for the bottoms
         masked_logits = []  # the predictions for the masked items
         for i in range(len(masked_items)):  # for each outfit
             if masked_positions[i] == 0:  # if the masked item is a shoe
@@ -163,7 +191,7 @@ class umBERT3(nn.Module):
                 masked_logits.append(logits_acc[i])  # add the logits of the masked item to the list
             elif masked_positions[i] == 3:  # if the masked item is a bottom
                 masked_logits.append(logits_bottoms[i])  # add the logits of the masked item to the list
-        return torch.stack(masked_logits).to(device), torch.stack(masked_items).to(device), masked_positions
+        return logits_shoes, logits_tops, logits_acc, logits_bottoms, torch.stack(masked_logits).to(device), torch.stack(masked_items).to(device), masked_positions
 
 
 
