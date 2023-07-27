@@ -14,7 +14,7 @@ from torch.autograd import Function
 # define a loss based on ssimval
 class SSIM_Loss(SSIM):
     def forward(self, img1, img2):
-        return 100*( 1 - super(SSIM_Loss, self).forward(img1, img2) )
+        return 100*(1 - super(SSIM_Loss, self).forward(img1, img2))
 
 class LowerBound(Function):
     @staticmethod
@@ -92,7 +92,8 @@ class AutoEncoder(nn.Module):
 
 
 class Encoder(nn.Module):
-    """ Encoder
+    """
+    Encoder
     """
 
     def __init__(self, C=32, M=128, in_chan=3):
@@ -176,6 +177,7 @@ def freeze(model, n=None):
                 param.requires_grad = False
             count += 1
 
+
 # fine-tune the model
 def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n_layers_to_freeze=0,num_epochs=20):
     """
@@ -203,7 +205,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
     early_stopping = 0  # keep track of the number of epochs without improvement
     for epoch in range(num_epochs):
         for phase in ['train', 'val']:  # train and validate the model
-            print(f'Fine-tuning the VAE Epoch: {epoch + 1}/{num_epochs} | Phase: {phase}')
+            print(f'\nFine-tuning the VAE Epoch: {epoch + 1}/{num_epochs} | Phase: {phase}')
             if phase == 'train':
                 model.train()  # set model to training mode
                 print('Training...')
@@ -219,7 +221,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
                 optimizer.zero_grad()  # zero the parameter gradients
 
                 with torch.set_grad_enabled(phase == 'train'):  # only calculate the gradients if training
-                    outputs,_ = model(inputs)  # forward pass
+                    outputs, _ = model(inputs)  # forward pass
                     ssm_loss = criterion(outputs, inputs)
                     loss = ssm_loss  # calculate the loss
 
@@ -242,12 +244,12 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
                     checkpoint = {'model_state_dict': model.state_dict()}
                     now = datetime.now()
                     dt_string = now.strftime("%Y_%m_%d")
-                    torch.save(checkpoint, f'./{dt_string}_trained_fashion_VAE_con_linear_layers.pth')
+                    torch.save(checkpoint, f'./{dt_string}_trained_fashion_VAE_128.pth')
                     valid_loss_min = epoch_loss
                     best_model = deepcopy(model)
                     early_stopping = 0
                 else:
-                    early_stopping += 1
+                    early_stopping += 1  # increment early stopping
         if early_stopping == 5:
             print('Early stopping!')
             break
@@ -277,7 +279,6 @@ def test_model(model, dataloader, device, criterion):
 
             outputs, embedding = model(inputs)  # forward pass
             ssm = criterion(outputs, inputs)  # calculate the error
-
 
             total_error_ssm += ssm.item()*inputs.size(0)  # update the total number of images
 

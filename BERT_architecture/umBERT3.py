@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 # device = torch.device("cpu")
+
 class umBERT3(nn.Module):
     """
     This class implements the umBERT2 architecture.
@@ -35,9 +36,9 @@ class umBERT3(nn.Module):
         if CLS is None:
             # CLS = torch.nn.Parameter(torch.randn(1, self.d_model).to(device))  # the CLS token
             CLS = torch.randn(1, self.d_model).to(device)
-        self.CLS = CLS # the CLS token
+        self.CLS = CLS  # the CLS token
         if MASK_dict is None:
-            MASK_dict = {'shoes':torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)), 'tops':torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)),
+            MASK_dict = {'shoes': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)), 'tops': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)),
                          'accessories': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device)), 'bottoms': torch.nn.Parameter(torch.randn((1, self.d_model)).to(device))}
         self.MASK_dict = MASK_dict  # the MASK token
         self.catalogue = embeddings  # the catalogue of embeddings
@@ -86,7 +87,7 @@ class umBERT3(nn.Module):
         """
         # create a tensor of shape (batch_size, seq_len+1, d_model)
         CLS = self.CLS.repeat(inputs.shape[0], 1, 1)
-        return  torch.cat((CLS,inputs), dim=1)
+        return torch.cat((CLS, inputs), dim=1)
 
     def mask_random_item(self, inputs):
         """
@@ -110,7 +111,6 @@ class umBERT3(nn.Module):
             # else:  # with a probability of 10%, do nothing
         return inputs
 
-
     def fill_in_the_blank_masking(self, inputs):
         """
         This function, for each outfit, generate 4 outfits with one item masked in each outfit
@@ -124,6 +124,7 @@ class umBERT3(nn.Module):
         # create a copy of the input
         outputs = inputs.clone()
         # repeat each outfit of the input 4 times
+        print(f'output type: {type(outputs)}')
         outputs = torch.repeat_interleave(outputs, 4, dim=0)
         for i in range(inputs.shape[0]):  # for each outfit in inputs
             for j in range(inputs.shape[1]):  # for each outfit in inputs

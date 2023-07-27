@@ -1,5 +1,7 @@
 # obtain the embeddings of the dataset using the trained model trained_fashion_VAE_resnet18_64.pth
 import json
+import os
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -9,7 +11,8 @@ from modello_autoencoder_ssimval import AutoEncoder
 from image_to_embeddings_AESSIMVAL import image_to_embedding_ANTONIO
 from datetime import datetime
 
-
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # use GPU if available
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")

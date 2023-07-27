@@ -14,7 +14,7 @@ from torchvision.transforms import transforms
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
-dim_embeddings = 64
+dim_embeddings = 128
 # load thecheckpoint
 checkpoint = torch.load(f'../models/finetuned_fashion_resnet18_{dim_embeddings}.pth')
 # load the model finetuned_fashion_resnet18_512.pth
@@ -42,7 +42,7 @@ data_transform = transforms.Compose([  # define the transformations to be applie
 data_dir = '../dataset_catalogue'  # define the directory of the dataset
 image_dataset = CustomImageDataset(root_dir=data_dir, data_transform=data_transform)  # create the dataset
 
-dataloaders = DataLoader(image_dataset, batch_size=128, num_workers=0)  # create the dataloader
+dataloaders = DataLoader(image_dataset, batch_size=256, num_workers=0)  # create the dataloader
 print("Dataset loaded")
 
 print("Computing the embeddings of the dataset")

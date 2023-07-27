@@ -1,3 +1,5 @@
+import os
+
 # import required libraries to train an autoencoder model (used later to compute image embeddings)
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
@@ -10,6 +12,9 @@ device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 # device = torch.device('cpu')
 print(f"Working on device {device}")
 
+# set the working directory to the path of the file
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 # define the transformations to be applied to the images, the employed model doesn't require normalization
 data_transforms = {
     'train': transforms.Compose(
@@ -20,10 +25,11 @@ data_transforms = {
             transforms.ToTensor(),
         ]),
     'val': transforms.Compose([
-        transforms.Resize(size=128),
+        transforms.Resize(size=128),  # Just normalization for validation, no augmentation.
         transforms.ToTensor()
     ]),
     'test': transforms.Compose([
+        transforms.Resize(size=128),  # Just Resizing for testing, no normalization and no augmentation.
         transforms.Resize(size=128),
         transforms.ToTensor()
     ])
@@ -47,16 +53,15 @@ print("Datasets loaded")
 # Create data loaders for training and validation
 print("Creating the dataloaders")
 dataloaders = {
-    'train': DataLoader(image_datasets['train'], batch_size=32, shuffle=True, num_workers=0),
-    'val': DataLoader(image_datasets['val'], batch_size=32, shuffle=False, num_workers=0),
-    'test': DataLoader(image_datasets['test'], batch_size=32, shuffle=False, num_workers=0)
+    'train': DataLoader(image_datasets['train'], batch_size=128, shuffle=True, num_workers=0),
+    'val': DataLoader(image_datasets['val'], batch_size=128, shuffle=False, num_workers=0),
+    'test': DataLoader(image_datasets['test'], batch_size=128, shuffle=False, num_workers=0)
 }
 print("Dataloaders created")
 # define the model, the optimizer and a criterion (loss function)
 model = AutoEncoder(C=128, M=128, in_chan=3, out_chan=3).to(device)
 
-optimizer = torch.optim.Adam(model.parameters(),
-                             lr=1e-4, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
 
 criterion = SSIM_Loss()
 

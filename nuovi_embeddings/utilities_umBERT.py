@@ -7,7 +7,7 @@ from datetime import datetime
 from copy import deepcopy
 
 # utility functions
-device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
+# device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 # device = torch.device("cpu")
 
 def create_tensor_dataset_from_dataframe(df_outfit: pd.DataFrame, embeddings, ids):
@@ -40,14 +40,14 @@ def find_closest_embeddings(recons_embeddings, embeddings, IDs_list, device):
     # with open('./reduced_data/IDs_list') as f:
     #     IDs_list = json.load(f)
     closest_embeddings = []
-    cosine_similarity = CosineSimilarity(dim=1, eps=1e-6)
     for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
         # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-        similarities = cosine_similarity(recons_embeddings[i, :], embeddings)
+        distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), embeddings)
         # find the index of the closest embedding
-        idx = torch.max(similarities, dim=0).indices
+        idx = torch.min(distances, dim=1).indices
         # append the closest embedding to the list
         closest_embeddings.append(IDs_list[idx])
+    closest_embeddings = np.array(closest_embeddings)
     return torch.LongTensor(closest_embeddings).to(device)
 
 
@@ -57,34 +57,31 @@ def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_pos
     embeddings_accessories = embeddings_dict['accessories']
     embeddings_bottoms = embeddings_dict['bottoms']
     closest_embeddings = []
-    cosine_similarity = CosineSimilarity(dim=1)
     for i, pos in enumerate(masked_positions):
         if pos == 0:  # shoes
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-            similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_shoes).to(device))
-            idx = torch.topk(similarities, k=topk).indices
+            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), torch.Tensor(embeddings_shoes).to(device))
+            idx = torch.topk(distances, k=topk, largest=False).indices
             idx = idx.tolist()
-            closest = [shoes_IDs[j] for j in idx]
+            closest_embeddings.append([shoes_IDs[j] for j in idx])
         elif pos == 1:  # tops
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-            similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_tops).to(device))
-            idx = torch.topk(similarities, k=topk).indices
+            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), torch.Tensor(embeddings_tops).to(device))
+            idx = torch.topk(distances, k=topk, largest=False).indices
             idx = idx.tolist()
-            closest = [tops_IDs[j] for j in idx]
+            closest_embeddings.append([tops_IDs[j] for j in idx])
         elif pos == 2:  # accessories
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-            similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_accessories).to(device))
-            idx = torch.topk(similarities, k=topk).indices
+            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), torch.Tensor(embeddings_accessories).to(device))
+            idx = torch.topk(distances, k=topk, largest=False).indices
             idx = idx.tolist()
-            closest = [accessories_IDs[j] for j in idx]
+            closest_embeddings.append([accessories_IDs[j] for j in idx])
         elif pos == 3:  # bottoms
             # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
-            similarities = cosine_similarity(recons_embeddings[i, :], torch.Tensor(embeddings_bottoms).to(device))
-            idx = torch.topk(similarities, k=topk).indices
+            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), torch.Tensor(embeddings_bottoms).to(device))
+            idx = torch.topk(distances, k=topk, largest=False).indices
             idx = idx.tolist()
-            closest = [bottoms_IDs[j] for j in idx]
-        # append the closest embedding to the list
-        closest_embeddings.append(closest)
+            closest_embeddings.append([bottoms_IDs[j] for j in idx])
     return closest_embeddings
 
 
@@ -257,20 +254,13 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                         phase == 'train'):  # forward + backward + optimize only if in training phase
                     logits_shoes, logits_tops, logits_acc, logits_bottoms = model.forward_reconstruction(inputs)
                     # compute the loss
-                    target = torch.ones(logits_shoes.shape[0]).to(device)  # target is a tensor of ones
-                    # TODO problema che dia valori maggiori di 1?
-                    loss_shoes = criterion(logits_shoes, inputs[:, 0, :], target)  # compute the loss for shoes
-                    loss_tops = criterion(logits_tops, inputs[:, 1, :], target)  # compute the loss for tops
-                    loss_acc = criterion(logits_acc, inputs[:, 2, :], target)  # compute the loss for accessories
-                    loss_bottoms = criterion(logits_bottoms, inputs[:, 3, :], target)  # compute the loss for bottoms
-                    # TODO chiedi se dividere o no per 4
-                    loss = loss_shoes + loss_tops + loss_acc + loss_bottoms # compute the total loss and normalize it
+                    loss_shoes = criterion(logits_shoes, inputs[:, 0, :])  # compute the loss for shoes
+                    loss_tops = criterion(logits_tops, inputs[:, 1, :])  # compute the loss for tops
+                    loss_acc = criterion(logits_acc, inputs[:, 2, :])  # compute the loss for accessories
+                    loss_bottoms = criterion(logits_bottoms, inputs[:, 3, :])  # compute the loss for bottoms
+                    loss = loss_shoes + loss_tops + loss_acc + loss_bottoms  # compute the total loss and normalize it
 
                     if phase == 'train':
-                        # loss_shoes.backward()  # compute the gradients of the loss
-                        # loss_tops.backward()  # compute the gradients of the loss
-                        # loss_acc.backward()  # compute the gradients of the loss
-                        # loss_bottoms.backward()  # compute the gradients of the loss
                         loss.backward()  # compute the gradients of the loss
                         optimizer.step()  # update the parameters
 
@@ -296,8 +286,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
             epoch_accuracy_tops = accuracy_tops / len(dataloaders[phase].dataset)
             epoch_accuracy_acc = accuracy_acc / len(dataloaders[phase].dataset)
             epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
-            epoch_accuracy_reconstruction = (
-                                                    epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+            epoch_accuracy_reconstruction = (epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
 
             if run is not None:
                 run[f"{phase}/epoch/loss"].append(epoch_loss)
@@ -338,7 +327,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                     now = datetime.now()
                     dt_string = now.strftime("%Y_%m_%d")
                     torch.save(checkpoint,
-                               f'./models/{dt_string}_umBERT4_pre_trained_reconstruction_{model.d_model}.pth')
+                               f'./models/{dt_string}_umBERT4_pre_trained_reconstruction_with_MSE_{model.d_model}.pth')
                     valid_loss_min = epoch_loss  # update the minimum validation loss
                     early_stopping = 0  # reset early stopping counter
                     best_model = deepcopy(model)
@@ -413,14 +402,12 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs,shoes_IDs, tops
                     logits_shoes, logits_tops, logits_acc, logits_bottoms,masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
 
                     # compute the loss
-                    target = torch.ones(masked_logits.shape[0]).to(device)
                     # compute the loss for each masked item
-                    loss_shoes = criterion(logits_shoes, inputs[:,0].repeat(4,1), target)  # compute the loss for the masked item
-                    loss_tops = criterion(logits_tops, inputs[:,1].repeat(4,1), target)  # compute the loss for the masked item
-                    loss_acc = criterion(logits_acc, inputs[:,2].repeat(4,1), target)  # compute the loss for the masked item
-                    loss_bottoms = criterion(logits_bottoms, inputs[:,3].repeat(4,1), target)  # compute the loss for the masked item
+                    loss_shoes = criterion(logits_shoes, inputs[:,0].repeat(4,1))  # compute the loss for the masked item
+                    loss_tops = criterion(logits_tops, inputs[:,1].repeat(4,1))  # compute the loss for the masked item
+                    loss_acc = criterion(logits_acc, inputs[:,2].repeat(4,1))  # compute the loss for the masked item
+                    loss_bottoms = criterion(logits_bottoms, inputs[:,3].repeat(4,1))  # compute the loss for the masked item
                     # normalize the loss
-                    # TODO controlla potrebbe essere troppo piccola come loss
                     loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
 
                     if phase == 'train':
@@ -449,7 +436,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs,shoes_IDs, tops
                     masked_IDs.append(labels_bottoms[i].item())
                 # TODO capire come calcolare accuracy
                 for i, id in enumerate(masked_IDs):
-                    if id in top_k_predictions[i]:
+                    if id in top_k_predictions[i][0]:
                         hit_ratio += 1
 
                 # # compute the accuracy of the fill in the blank task
