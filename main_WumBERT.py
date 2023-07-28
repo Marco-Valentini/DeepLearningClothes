@@ -106,7 +106,7 @@ def objective(params):
     # pre-train on task #2
     # define the optimizer
     print("Starting pre-training the model on task reconstruction...")
-    n_epochs = 1
+    n_epochs = 500
     optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
     criterion1 = MSELoss()
     model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer1)
