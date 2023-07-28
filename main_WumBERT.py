@@ -68,7 +68,7 @@ dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader}
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 1
+max_evals = 25
 # define the search space
 possible_learning_rates_pre_training = [1e-5,1e-4,1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
@@ -105,7 +105,7 @@ def objective(params):
     # pre-train on task #2
     # define the optimizer
     print("Starting pre-training the model on task reconstruction...")
-    n_epochs = 1
+    n_epochs = 500
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
     criterion1 = MSELoss()
     model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
@@ -141,7 +141,7 @@ model.to(device)  # move the model to the device
 
 # pre-train on task #1 reconstruction
 # define the optimizer
-n_epochs = 1
+n_epochs = 500
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 criterion1 = MSELoss()
 model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
