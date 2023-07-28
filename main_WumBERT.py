@@ -72,7 +72,7 @@ max_evals = 25
 possible_learning_rates_pre_training = [1e-5,1e-4,1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
 possible_n_heads = [1, 2, 4, 8]
-possible_n_encoders = [3, 6,9, 12]
+possible_n_encoders = [3, 6, 9, 12]
 
 possible_optimizers = [Adam, Lion]
 
