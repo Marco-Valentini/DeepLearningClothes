@@ -124,7 +124,6 @@ class umBERT3(nn.Module):
         # create a copy of the input
         outputs = inputs.clone()
         # repeat each outfit of the input 4 times
-        print(f'output type: {type(outputs)}')
         outputs = torch.repeat_interleave(outputs, 4, dim=0)
         for i in range(inputs.shape[0]):  # for each outfit in inputs
             for j in range(inputs.shape[1]):  # for each outfit in inputs

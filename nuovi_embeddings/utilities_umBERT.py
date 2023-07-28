@@ -498,3 +498,63 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs,shoes_IDs, tops
     plt.title('Hit ratio (fill in the blank) fine-tuning')
     plt.show()
     return best_model, valid_loss_min
+
+def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, criterion):
+    running_loss = 0.0  # keep track of the loss
+    hit_ratio = 0.0  # keep track of the accuracy of the fill in the blank task
+    # batch_number = 0
+    for inputs, labels in dataloader:  # for each batch
+        # print(f'Batch: {batch_number}/{len(dataloaders[phase])}')
+        # batch_number += 1
+        inputs = inputs.to(device)  # move the input tensors to the GPU
+        # labels are the IDs of the items in the outfit
+        labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
+        labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
+        labels_acc = labels[:, 2].to(device)  # move the labels_acc to the device
+        labels_bottoms = labels[:, 3].to(device)  # move the labels_bottoms to the device
+
+        with torch.set_grad_enabled(False):  # forward + backward + optimize only if in training phase
+            # compute the forward pass
+            logits_shoes, logits_tops, logits_acc, logits_bottoms, masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(
+                inputs)
+
+            # compute the loss
+            # compute the loss for each masked item
+            loss_shoes = criterion(logits_shoes, inputs[:, 0].repeat(4, 1))  # compute the loss for the masked item
+            loss_tops = criterion(logits_tops, inputs[:, 1].repeat(4, 1))  # compute the loss for the masked item
+            loss_acc = criterion(logits_acc, inputs[:, 2].repeat(4, 1))  # compute the loss for the masked item
+            loss_bottoms = criterion(logits_bottoms, inputs[:, 3].repeat(4, 1))  # compute the loss for the masked item
+            # normalize the loss
+            loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
+
+
+        # update the loss value (multiply by the batch size)
+        running_loss += loss.item() * inputs.size(0)
+
+        # from the outputs of the model, retrieve only the predictions of the masked items
+
+        #  implement top-k accuracy
+        top_k_predictions = find_top_k_closest_embeddings(masked_logits, model.catalogue_dict, masked_positions,
+                                                          shoes_IDs, tops_IDs,
+                                                          accessories_IDs, bottoms_IDs, device, topk=10)
+
+        masked_IDs = []
+
+        for i in range(len(labels_shoes)):
+            masked_IDs.append(labels_shoes[i].item())
+            masked_IDs.append(labels_tops[i].item())
+            masked_IDs.append(labels_acc[i].item())
+            masked_IDs.append(labels_bottoms[i].item())
+        # TODO capire come calcolare accuracy
+        for i, id in enumerate(masked_IDs):
+            if id in top_k_predictions[i][0]:
+                hit_ratio += 1
+
+    # compute the average loss of the epoch
+    epoch_loss = running_loss / (len(dataloader.dataset)*4)
+    # compute the average accuracy of the fill in the blank task of the epoch
+    epoch_hit_ratio = hit_ratio  # / len(dataloaders[phase].dataset) # TODO valuta per cosa dividi qui
+    print(f'Test Loss: {epoch_loss}')
+    print(f'Test Hit ratio (fill in the blank): {epoch_hit_ratio}')
+    print(f'Test Hit ratio normalized (fill in the blank): {epoch_hit_ratio/(len(dataloader.dataset)*4)}')
+

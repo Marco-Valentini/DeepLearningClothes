@@ -5,7 +5,7 @@ from BERT_architecture.umBERT3 import umBERT3 as umBERT
 from hyperopt import Trials, hp, fmin, tpe, STATUS_OK
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.nn import MSELoss
 from constants import API_TOKEN
 from nuovi_embeddings.utilities_umBERT import *
@@ -36,10 +36,10 @@ df = pd.read_csv('./reduced_data/reduced_compatibility.csv')
 df.reset_index(drop=True, inplace=True)
 print('Compatibility dataset loaded!')
 # load the IDs of the images
-with open("./nuovi_embeddings/AE_IDs_list", "r") as fp:
+with open("./nuovi_embeddings/2023_07_27AE_IDs_list", "r") as fp:
     IDs = json.load(fp)
 # load the embeddings
-with open(f'./nuovi_embeddings/AE_embeddings_128.npy', 'rb') as f:
+with open(f'./nuovi_embeddings/2023_07_27AE_embeddings_128.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # compute the IDs of the shoes in the outfits
@@ -158,7 +158,7 @@ print("dataloaders for pre-training task #2 created!")
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 10
+max_evals = 25
 # define the search space
 possible_learning_rates_pre_training = [1e-5, 1e-4, 1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
@@ -166,22 +166,18 @@ possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [3, 6, 9, 12]
 possible_n_epochs_pretrainig = [500]
 possible_n_epochs_finetuning = [500]
-possible_optimizers = [Adam]#, AdamW, Lion]
+possible_optimizers = [Adam, AdamW] # , Lion]
 
 space = {
-    #'lr1': hp.choice('lr1', possible_learning_rates_pre_training),
+    'lr1': hp.choice('lr1', possible_learning_rates_pre_training),
     'lr2': hp.choice('lr2', possible_learning_rates_pre_training),
-    'lr3': hp.choice('lr3', possible_learning_rates_fine_tuning),
-    #'n_epochs_1': hp.choice('n_epochs_1', possible_n_epochs_pretrainig),
+    'n_epochs_1': hp.choice('n_epochs_1', possible_n_epochs_pretrainig),
     'n_epochs_2': hp.choice('n_epochs_2', possible_n_epochs_pretrainig),
-    'n_epochs_3': hp.choice('n_epochs_3', possible_n_epochs_finetuning),
     'dropout': hp.uniform('dropout', 0, 0.2),
     'num_encoders': hp.choice('num_encoders', possible_n_encoders),
     'num_heads': hp.choice('num_heads', possible_n_heads),
     'weight_decay': hp.uniform('weight_decay', 0, 0.01),
-    #'optimizer1': hp.choice('optimizer1', possible_optimizers),
-    'optimizer2': hp.choice('optimizer2', possible_optimizers),
-    'optimizer3': hp.choice('optimizer3', possible_optimizers)
+    'optimizer': hp.choice('optimizer', possible_optimizers),
 }
 
 # define the algorithm
@@ -199,28 +195,14 @@ def objective(params):
                    num_heads=params['num_heads'], dropout=params['dropout'], MASK_dict=MASK_dict)
     model.to(device)  # move the model to the device
     print(f"model loaded on {device}")
-    # pre-train on task #1
+    # pre-train on task #1 reconstruction
     # define the optimizer
     print("Starting pre-training the model on task #1...")
-
-    # checkpoint = torch.load('./models/2023_07_23_umBERT4_pre_trained_reconstruction_64.pth')
-    # model.load_state_dict(checkpoint['model_state_dict'])
-    print("model parameters loaded")
-    #
-    # # optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
-    # optimizer1 = torch.optim.SGD(params=model.parameters(), lr=params['lr1'], momentum=0.9, weight_decay=0.01)
-    # criterion1 = CrossEntropyLoss()
-    # model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, optimizer=optimizer1,
-    #                                    criterion=criterion1, n_epochs=params['n_epochs_1'], device=device, run=None)
-
-    # pre-train on task #2
-    # define the optimizer
-    print("Starting pre-training the model on task #2...")
-    optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
-    criterion2 = MSELoss()
+    n_epochs = 500
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+    criterion = MSELoss()
     model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
-                                                               optimizer=optimizer2,
-                                                               criterion=criterion2, n_epochs=params['n_epochs_2'],
+                                                               optimizer=optimizer, criterion=criterion,n_epochs=n_epochs,
                                                                shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                                accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
                                                                device=device, run=None)
@@ -228,14 +210,12 @@ def objective(params):
     # fine-tune on task #3
     # define the optimizer
     print("Starting fine tuning the model...")
-    optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
-    criterion3 = MSELoss()
-    model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer3,
-                                           criterion=criterion3, n_epochs=params['n_epochs_3'], shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
+    model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
+                                           criterion=criterion, n_epochs=n_epochs, shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                                accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,device=device, run=None)
-    best_loss_BC = 0
+
     # compute the weighted sum of the losses
-    loss = best_loss_BC + best_loss_reconstruction + best_loss_fine_tune
+    loss = best_loss_reconstruction + best_loss_fine_tune
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 
@@ -246,19 +226,13 @@ best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals,
 
 # train the model using the optimal hyperparameters found
 params = {
-#    'lr1': possible_learning_rates_pre_training[best['lr1']],
-    'lr2': possible_learning_rates_pre_training[best['lr2']],
-    'lr3': possible_learning_rates_fine_tuning[best['lr3']],
-#    'n_epochs_1': possible_n_epochs_pretrainig[best['n_epochs_1']],
-    'n_epochs_2': possible_n_epochs_pretrainig[best['n_epochs_2']],
-    'n_epochs_3': possible_n_epochs_finetuning[best['n_epochs_3']],
+    'lr1': possible_learning_rates_pre_training[best['lr1']],
+    'lr2': possible_learning_rates_fine_tuning[best['lr2']],
     'dropout': best['dropout'],
     'num_encoders': possible_n_encoders[best['num_encoders']],
     'num_heads': possible_n_heads[best['num_heads']],
     'weight_decay': best['weight_decay'],
-#    'optimizer1': possible_optimizers[best['optimizer1']],
-    'optimizer2': possible_optimizers[best['optimizer2']],
-    'optimizer3': possible_optimizers[best['optimizer3']]
+    'optimizer': possible_optimizers[best['optimizer']],
 }
 print(f"Best hyperparameters found: {params}")
 
@@ -266,31 +240,28 @@ print(f"Best hyperparameters found: {params}")
 model = umBERT(embeddings=embeddings, embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
                num_heads=params['num_heads'], dropout=params['dropout'], MASK_dict=MASK_dict)
 model.to(device)  # move the model to the device
-# pre-train on task #1
-# define the run for monitoring the training on Neptune dashboard
-# define the optimizer
-# optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
-# criterion1 = CrossEntropyLoss()
-# model, best_loss_BC = pre_train_BC(model=model, dataloaders=dataloaders_BC, optimizer=optimizer1,
-#                                    criterion=criterion1, n_epochs=params['n_epochs_1'], device = device, run=None)
 # pre-train on task #2
 # define the optimizer
-optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
-criterion2 = MSELoss()
+n_epochs = 500
+optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+criterion = MSELoss()
 model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
-                                                           optimizer=optimizer2,
-                                                           criterion=criterion2, n_epochs=params['n_epochs_2'],shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
+                                                           optimizer=optimizer,
+                                                           criterion=criterion, n_epochs=n_epochs,shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                                accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs, device=device,
                                                            run=None)
 # fine-tune on task #3
 # define the optimizer
-optimizer3 = params['optimizer3'](params=model.parameters(), lr=params['lr3'], weight_decay=params['weight_decay'])
-criterion3 = MSELoss()
-model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer3,
-                                       criterion=criterion3, n_epochs=params['n_epochs_3'], shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
+model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
+                                       criterion=criterion, n_epochs=n_epochs, shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                                accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs, device=device, run=None)
 
 #print(f"Best loss BC: {best_loss_BC}")
 print(f"Best loss reconstruction: {best_loss_reconstruction}")
 print(f"Best loss fine-tune: {best_loss_fine_tune}")
+
+
+# test the model
+test_model(model, device, dataloaders_reconstruction['test'], shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, criterion)
+
 print("THE END")

@@ -8,9 +8,10 @@ from BERT_architecture.WumBERT import WumBERT
 from hyperopt import Trials, hp, fmin, tpe, STATUS_OK
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
-from lion_pytorch import Lion
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.nn import MSELoss
+from tqdm import tqdm
+from BERT_architecture.utilities_WumBERT import find_top_k_closest_embeddings, find_closest_embeddings
 
 # set the seed for reproducibility
 random.seed(42)
@@ -67,25 +68,23 @@ dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader}
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 25
+max_evals = 1
 # define the search space
 possible_learning_rates_pre_training = [1e-5,1e-4,1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
 possible_n_heads = [1, 2, 4, 8]
 possible_n_encoders = [3, 6, 9, 12]
 
-possible_optimizers = [Adam, Lion]
+possible_optimizers = [Adam, AdamW]
 
 
 space = {
-    'lr1': hp.choice('lr1', possible_learning_rates_pre_training),
-    'lr2': hp.choice('lr2', possible_learning_rates_fine_tuning),
+    'lr': hp.choice('lr', possible_learning_rates_pre_training),
     'dropout': hp.uniform('dropout', 0, 0.2),
     'num_encoders': hp.choice('num_encoders', possible_n_encoders),
     'num_heads': hp.choice('num_heads', possible_n_heads),
     'weight_decay': hp.uniform('weight_decay', 0, 0.01),
-    'optimizer1': hp.choice('optimizer1', possible_optimizers),
-    'optimizer2': hp.choice('optimizer2', possible_optimizers)
+    'optimizer': hp.choice('optimizer', possible_optimizers),
 }
 
 # define the algorithm
@@ -106,17 +105,16 @@ def objective(params):
     # pre-train on task #2
     # define the optimizer
     print("Starting pre-training the model on task reconstruction...")
-    n_epochs = 500
-    optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+    n_epochs = 1
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
     criterion1 = MSELoss()
-    model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer1)
+    model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
 
     # fine-tune on task #3
     # define the optimizer
     print("Starting fine tuning the model...")
-    optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
     criterion2 = MSELoss()
-    model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer2)
+    model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer)
     # compute the weighted sum of the losses
     loss = best_loss_reconstruction + best_loss_fine_tune
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
@@ -128,14 +126,12 @@ best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals,
 
 # train the model using the optimal hyperparameters found
 params = {
-    'lr1': possible_learning_rates_pre_training[best['lr1']],
-    'lr2': possible_learning_rates_pre_training[best['lr2']],
+    'lr': possible_learning_rates_pre_training[best['lr']],
     'dropout': best['dropout'],
     'num_encoders': possible_n_encoders[best['num_encoders']],
     'num_heads': possible_n_heads[best['num_heads']],
     'weight_decay': best['weight_decay'],
-    'optimizer1': possible_optimizers[best['optimizer1']],
-    'optimizer2': possible_optimizers[best['optimizer2']],
+    'optimizer': possible_optimizers[best['optimizer']],
 }
 print(f"Best hyperparameters found: {params}")
 
@@ -145,26 +141,77 @@ model.to(device)  # move the model to the device
 
 # pre-train on task #1 reconstruction
 # define the optimizer
-n_epochs = 500
-optimizer1 = params['optimizer1'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
+n_epochs = 1
+optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 criterion1 = MSELoss()
-model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer1)
+model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
 # fine-tune on task fill in the  blank
 # define the optimizer
-optimizer2 = params['optimizer2'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
 criterion2 = MSELoss()
-model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer2)
+model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer)
 
 print(f"Best loss reconstruction: {best_loss_reconstruction}")
 print(f"Best loss fine-tune: {best_loss_fine_tune}")
-print("THE END")
+
 
 # test on the test set
 
-# for input in dataloaders['test']:
-#     input = input.to(device)
-#     output = model.forward_with_masking(input)
+phase = 'test'
+for input in tqdm(dataloaders[phase], colour='yellow'):
+    input = input.to(device)
+    input = input.repeat_interleave(4, dim=0)
+    output = model.forward_with_masking(input)
+    inputs = input.repeat_interleave(4, dim=0)
+    accuracy_shoes = 0.0
+    accuracy_tops = 0.0
+    accuracy_acc = 0.0
+    accuracy_bottoms = 0.0
+    hit_ratio = 0.0
+    with torch.set_grad_enabled(False):
+        rec_shoes, rec_tops, rec_acc, rec_bottoms, masked_logits, masked_positions, masked_items = model.forward_with_masking(
+            inputs)
+        pred_shoes = find_closest_embeddings(rec_shoes, model.embeddings(
+            torch.LongTensor(list(model.shoes_idx)).to(device)), model.shoes_idx)
+        pred_tops = find_closest_embeddings(rec_tops, model.embeddings(
+            torch.LongTensor(list(model.tops_idx)).to(device)), model.tops_idx)
+        pred_acc = find_closest_embeddings(rec_acc, model.embeddings(
+            torch.LongTensor(list(model.accessories_idx)).to(device)), model.accessories_idx)
+        pred_bottoms = find_closest_embeddings(rec_bottoms, model.embeddings(
+            torch.LongTensor(list(model.bottoms_idx)).to(device)), model.bottoms_idx)
+        pred_masked = find_top_k_closest_embeddings(recons_embeddings=masked_logits, masked_positions=masked_positions,
+                                                    shoes_emebeddings=model.embeddings(
+                                                        torch.LongTensor(list(model.shoes_idx)).to(device)),
+                                                    shoes_idx=model.shoes_idx, tops_embeddings=model.embeddings(
+                torch.LongTensor(list(model.tops_idx)).to(device)),
+                                                    tops_idx=model.tops_idx, accessories_embeddings=model.embeddings(
+                torch.LongTensor(list(model.accessories_idx)).to(device)),
+                                                    accessories_idx=model.accessories_idx,
+                                                    bottoms_embeddings=model.embeddings(
+                                                        torch.LongTensor(list(model.bottoms_idx)).to(device)),
+                                                    bottoms_idx=model.bottoms_idx, topk=10)
+        accuracy_shoes += np.sum(np.array(pred_shoes) == inputs[:, 0].cpu().numpy())
+        accuracy_tops += np.sum(np.array(pred_tops) == inputs[:, 1].cpu().numpy())
+        accuracy_acc += np.sum(np.array(pred_acc) == inputs[:, 2].cpu().numpy())
+        accuracy_bottoms += np.sum(np.array(pred_bottoms) == inputs[:, 3].cpu().numpy())
 
+        # compute the hit ratio
+        for i in range(len(pred_masked)):
+            if masked_items[i] in pred_masked[i]:
+                hit_ratio += 1
+    # compute the average accuracy of the MLM task of the epoch
+epoch_accuracy_shoes = accuracy_shoes / (len(dataloaders[phase].dataset) * 4)
+epoch_accuracy_tops = accuracy_tops / (len(dataloaders[phase].dataset) * 4)
+epoch_accuracy_acc = accuracy_acc / (len(dataloaders[phase].dataset) * 4)
+epoch_accuracy_bottoms = accuracy_bottoms / (len(dataloaders[phase].dataset) * 4)
+epoch_accuracy_reconstruction = (epoch_accuracy_shoes + epoch_accuracy_tops +
+                                 epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
 
-
-
+epoch_hit_ratio = hit_ratio  # / len(dataloaders[phase].dataset)
+print(f'{phase} Test Accuracy (shoes): {epoch_accuracy_shoes}')
+print(f'{phase} Test Accuracy (tops): {epoch_accuracy_tops}')
+print(f'{phase} Test Accuracy (acc): {epoch_accuracy_acc}')
+print(f'{phase} Test Accuracy (bottoms): {epoch_accuracy_bottoms}')
+print(f'{phase} Test Accuracy (Reconstruction): {epoch_accuracy_reconstruction}')
+print(f'{phase} Test Hit ratio: {epoch_hit_ratio}')
+print(f'{phase} Test Hit ratio (normalized): {epoch_hit_ratio / len(dataloaders[phase].dataset) * 4}')
+print("THE END")
