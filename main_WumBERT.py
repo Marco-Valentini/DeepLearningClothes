@@ -79,7 +79,8 @@ possible_optimizers = [Adam, AdamW]
 
 
 space = {
-    'lr': hp.choice('lr', possible_learning_rates_pre_training),
+    'lr1': hp.choice('lr1', possible_learning_rates_pre_training),
+    'lr2': hp.choice('lr2', possible_learning_rates_fine_tuning),
     'dropout': hp.uniform('dropout', 0, 0.2),
     'num_encoders': hp.choice('num_encoders', possible_n_encoders),
     'num_heads': hp.choice('num_heads', possible_n_heads),
@@ -106,7 +107,7 @@ def objective(params):
     # define the optimizer
     print("Starting pre-training the model on task reconstruction...")
     n_epochs = 500
-    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
     criterion1 = MSELoss()
     model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
 
@@ -114,6 +115,7 @@ def objective(params):
     # define the optimizer
     print("Starting fine tuning the model...")
     criterion2 = MSELoss()
+    optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
     model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer)
     # compute the weighted sum of the losses
     loss = best_loss_reconstruction + best_loss_fine_tune
@@ -126,7 +128,8 @@ best = fmin(fn=objective, space=space, algo=tpe_algorithm, max_evals=max_evals,
 
 # train the model using the optimal hyperparameters found
 params = {
-    'lr': possible_learning_rates_pre_training[best['lr']],
+    'lr1': possible_learning_rates_pre_training[best['lr1']],
+    'lr2': possible_learning_rates_fine_tuning[best['lr2']],
     'dropout': best['dropout'],
     'num_encoders': possible_n_encoders[best['num_encoders']],
     'num_heads': possible_n_heads[best['num_heads']],
@@ -142,11 +145,12 @@ model.to(device)  # move the model to the device
 # pre-train on task #1 reconstruction
 # define the optimizer
 n_epochs = 500
-optimizer = params['optimizer'](params=model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
 criterion1 = MSELoss()
 model, best_loss_reconstruction = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion1, optimizer=optimizer)
 # fine-tune on task fill in the  blank
 # define the optimizer
+optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
 criterion2 = MSELoss()
 model, best_loss_fine_tune = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs, criterion=criterion2, optimizer=optimizer)
 
