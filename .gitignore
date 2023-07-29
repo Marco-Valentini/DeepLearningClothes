@@ -167,13 +167,10 @@ vcs.xml
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 .DS_Store
-/dataset_cnn_fine_tuning/
+/Images_categorized/
 /dataset_catalogue/
 /reduced_data/embeddings_512_old.npy
-/reduced_data/IDs_list
-/models/umBERT_pretrained_BC.pth
-/models/umBERT_pretrained_MLM.pth
-/models/
+/reduced_data/resnet_IDs_list
 /dataset_catalogue_accessories/
 /dataset_catalogue_bottoms/
 /dataset_catalogue_shoes/

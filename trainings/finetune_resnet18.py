@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.transforms import transforms
 
-from utility.resnet18_modified import Resnet18Modified
+from models.resnet18_modified import Resnet18Modified
 
 # set the seed for reproducibility
 random.seed(42)
@@ -94,7 +94,7 @@ data_transforms = {
 }
 
 # Set the paths to your training and validation data folders
-data_dir = '../dataset_cnn_fine_tuning'
+data_dir = '../Images_categorized'
 train_dir = data_dir + '/train'
 val_dir = data_dir + '/val'
 test_dir = data_dir + '/test'
@@ -204,7 +204,7 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, n
                     print(f'saving model with validation accuracy {epoch_acc}')
                     checkpoint = {'state_dict': model.state_dict(),
                                   'dim_embeddings': model.dim_embeddings}
-                    torch.save(checkpoint, f'../models/finetuned_fashion_resnet18_{model.dim_embeddings}.pth')
+                    torch.save(checkpoint, f'../checkpoints/finetuned_fashion_resnet18_{model.dim_embeddings}.pth')
                     valid_loss_min = epoch_loss
                     best_model = model
     plt.plot(train_loss, label='train')
