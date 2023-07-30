@@ -1,4 +1,4 @@
-# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18
+# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18_128.pth
 import json
 import numpy as np
 import torch

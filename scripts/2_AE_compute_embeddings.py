@@ -1,4 +1,4 @@
-# obtain the embeddings of the dataset using the trained model trained_fashion_VAE_resnet18_64.pth
+# obtain the embeddings of the dataset using the trained model trained_fashion_VAE_resnet18_128.pth
 import json
 import os
 
@@ -21,7 +21,7 @@ print("Device used: ", device)
 # define the size of the embeddings
 
 # load the checkpoint
-checkpoint = torch.load(f'../nuovi_embeddings/2023_07_27_trained_fashion_VAE_128.pth')
+checkpoint = torch.load(f'../checkpoints/trained_fashion_VAE_128.pth')
 print(f"Loading the trained model")
 model = AutoEncoder()
 model.load_state_dict(checkpoint['model_state_dict'])  # load the weights of the trained model

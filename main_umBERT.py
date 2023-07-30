@@ -1,7 +1,7 @@
 import random
 import os
 import json
-from models.umBERT import umBERT3 as umBERT
+from models.umBERT import umBERT as umBERT
 from hyperopt import Trials, hp, fmin, tpe, STATUS_OK
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset

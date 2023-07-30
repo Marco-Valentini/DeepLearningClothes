@@ -5,18 +5,15 @@ import torch.nn as nn
 device = torch.device("cpu")
 
 
-class umBERT3(nn.Module):
+class umBERT(nn.Module):
     """
-    This class implements the umBERT2 architecture.
-    This model assumes that the items in each outfit are ordered in the following way: shoes, tops, accessories, bottoms;
-    so it keeps track of the catalogue size of each category in the outfit and uses this information to train 4 different
-    ffnn (one for each category) to predict not only the masked item (MLM task) but also the non-masked ones (reconstruction task).
+    This class implements the umBERT architecture.
     """
 
     def __init__(self, embeddings, embeddings_dict, num_encoders=6, num_heads=1, dropout=0,
                  MASK_dict=None, dim_feedforward=None):
         """
-        the constructor of the class umBERT2
+        the constructor of the class umBERT
         :param embeddings: the catalogue of the embeddings
         :param embeddings_dict: the catalogue of the embeddings in dictionary form
         :param num_encoders: the number of encoders in the encoder stack
@@ -25,7 +22,7 @@ class umBERT3(nn.Module):
         :param MASK_dict: the dictionary of the MASK tokens
         :param dim_feedforward: the dimension of the feedforward layer in the encoder stack (if None, it is set to d_model*4)
         """
-        super(umBERT3, self).__init__()
+        super(umBERT, self).__init__()
         # the umBERT parameters
         if dim_feedforward is None:
             dim_feedforward = embeddings.shape[1] * 4  # according to the paper
