@@ -7,6 +7,7 @@ class Resnet18Modified(nn.Module):
     with the given number of output features (the desired size of the embeddings) and add a final fully connected layer
     with the given number of classes to classify (bottoms, tops, shoes, accessories).
     """
+
     def __init__(self, model, dim_embeddings, num_classes):
         super(Resnet18Modified, self).__init__()
         self.dim_embeddings = dim_embeddings

@@ -9,7 +9,8 @@ this python script takes images from a catalogue and move them in the folder 'da
 '''
 root_dir = '../dataset/images/'
 
-reduced_compatibility = pd.read_csv('../reduced_data/reduced_compatibility.csv')  # this dataset cotains both compatible and incompatible outfits
+# this dataset cotains both compatible and incompatible outfits
+reduced_compatibility = pd.read_csv('../reduced_data/reduced_compatibility.csv')
 reduced_compatibility.drop(columns='compatibility', inplace=True)
 
 # create a list of all the ids in the reduced_compatibility and unified_dataset_MLM datasets

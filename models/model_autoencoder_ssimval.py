@@ -1,7 +1,8 @@
-# import the required libraries to define an autoencoder model as seen in the repository https://github.com/VainF/pytorch-msssim/tree/master
+# import the required libraries to define an autoencoder model
+# as seen in the repository https://github.com/VainF/pytorch-msssim/tree/master
 import matplotlib.pyplot as plt
 from datetime import datetime
-from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
+from pytorch_msssim import SSIM
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -11,10 +12,16 @@ from copy import deepcopy
 
 from torch.autograd import Function
 
+
 # define a loss based on ssimval
 class SSIM_Loss(SSIM):
+    """
+    Compute the MS-SSIM loss between img1 and img2.
+    """
+
     def forward(self, img1, img2):
-        return 100*(1 - super(SSIM_Loss, self).forward(img1, img2))
+        return 100 * (1 - super(SSIM_Loss, self).forward(img1, img2))
+
 
 class LowerBound(Function):
     @staticmethod
@@ -34,14 +41,12 @@ class LowerBound(Function):
 
 
 class GDN(nn.Module):
-    def __init__(self,
-                 num_features,
-                 inverse=False,
-                 gamma_init=.1,
-                 beta_bound=1e-6,
-                 gamma_bound=0.0,
-                 reparam_offset=2 ** -18,
-                 ):
+    """
+    Generalized divisive normalization layer.
+    """
+
+    def __init__(self, num_features, inverse=False, gamma_init=0.1, beta_bound=1e-6, gamma_bound=0.0,
+                 reparam_offset=2 ** -18):
         super(GDN, self).__init__()
         self._inverse = inverse
         self.num_features = num_features
@@ -49,8 +54,8 @@ class GDN(nn.Module):
         self.pedestal = self.reparam_offset ** 2
 
         beta_init = torch.sqrt(torch.ones(num_features, dtype=torch.float) + self.pedestal)
-        gama_init = torch.sqrt(torch.full((num_features, num_features), fill_value=gamma_init, dtype=torch.float)
-                               * torch.eye(num_features, dtype=torch.float) + self.pedestal)
+        gama_init = torch.sqrt(torch.full((num_features, num_features), fill_value=gamma_init, dtype=torch.float) *
+                               torch.eye(num_features, dtype=torch.float) + self.pedestal)
 
         self.beta = nn.Parameter(beta_init)
         self.gamma = nn.Parameter(gama_init)
@@ -63,8 +68,8 @@ class GDN(nn.Module):
         return (var ** 2) - self.pedestal
 
     def forward(self, x):
-        gamma = self._reparam(self.gamma, self.gamma_bound).view(self.num_features, self.num_features, 1,
-                                                                 1)  # expand to (C, C, 1, 1)
+        gamma = self._reparam(self.gamma, self.gamma_bound).view(self.num_features,
+                                                                 self.num_features, 1, 1)  # expand to (C, C, 1, 1)
         beta = self._reparam(self.beta, self.beta_bound)
         norm_pool = F.conv2d(x ** 2, gamma, bias=beta, stride=1, padding=0)
         norm_pool = torch.sqrt(norm_pool)
@@ -79,6 +84,11 @@ class GDN(nn.Module):
 # https://arxiv.org/pdf/1611.01704.pdf
 # A simplified version without quantization
 class AutoEncoder(nn.Module):
+    """
+    AutoEncoder model based on the paper https://arxiv.org/pdf/1611.01704.pdf
+    with a few modifications to the architecture
+    """
+
     def __init__(self, C=128, M=128, in_chan=3, out_chan=3):
         super(AutoEncoder, self).__init__()
         self.encoder = Encoder(C=C, M=M, in_chan=in_chan)
@@ -93,7 +103,7 @@ class AutoEncoder(nn.Module):
 
 class Encoder(nn.Module):
     """
-    Encoder
+    Encoder model based on the paper https://arxiv.org/pdf/1611.01704.pdf with a few modifications to the architecture
     """
 
     def __init__(self, C=32, M=128, in_chan=3):
@@ -110,13 +120,13 @@ class Encoder(nn.Module):
 
             nn.Conv2d(in_channels=M, out_channels=C, kernel_size=5, stride=2, padding=2, bias=False),
 
-            nn.Flatten(start_dim=1), # flatten the hidden representation
+            nn.Flatten(start_dim=1),  # flatten the hidden representation
 
-            nn.Linear(128*8*8, 1024),
+            nn.Linear(128 * 8 * 8, 1024),
 
             nn.ReLU(),
 
-            nn.Linear(1024,128)
+            nn.Linear(1024, 128)
         )
 
     def forward(self, x):
@@ -124,7 +134,8 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    """ Decoder
+    """
+    Decoder model based on the paper https://arxiv.org/pdf/1611.01704.pdf with a few modifications to the architecture
     """
 
     def __init__(self, C=32, M=128, out_chan=3):
@@ -135,7 +146,7 @@ class Decoder(nn.Module):
 
             nn.ReLU(),
 
-            nn.Linear(1024, 128*8*8),
+            nn.Linear(1024, 128 * 8 * 8),
 
             nn.Unflatten(1, (128, 8, 8)),
 
@@ -158,28 +169,9 @@ class Decoder(nn.Module):
     def forward(self, q):
         return torch.sigmoid(self.dec(q))
 
-# freeze the given number of layers of the given model
-def freeze(model, n=None):
-    """
-    This function freezes the given number of layers of the given model in order to fine-tune it.
-    :param model: the model to be frozen
-    :param n: the number of layers to be frozen, if None, all the layers are frozen
-    :return: the frozen model
-    #TODO non usata si può togliere
-    """
-    if n is None:
-        for param in model.parameters():
-            param.requires_grad = False
-    else:
-        count = 0
-        for param in model.parameters():
-            if count < n:
-                param.requires_grad = False
-            count += 1
-
 
 # fine-tune the model
-def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n_layers_to_freeze=0,num_epochs=20):
+def fit(model, optimizer, dataloaders, device, criterion, num_epochs=20):
     """
     This function fine-tunes the given model using the given optimizer and loss function for the given number of epochs.
     :param model: the model to be fine-tuned
@@ -189,12 +181,7 @@ def fine_tune_model(model, freezer, optimizer, dataloaders, device, criterion, n
     :param device: the device to be used
     :param num_epochs: the number of epochs to train the model
     :return: the fine-tuned model
-    # TODO cambia il nome qua
     """
-
-    # freeze parameters of the pre-trained model
-    # To freeze a specific number of layers, pass the number as the second argument
-    freezer(model, n=n_layers_to_freeze)
 
     model = model.to(device)  # move the model to the device
 
@@ -280,7 +267,6 @@ def test_model(model, dataloader, device, criterion):
             outputs, embedding = model(inputs)  # forward pass
             ssm = criterion(outputs, inputs)  # calculate the error
 
-            total_error_ssm += ssm.item()*inputs.size(0)  # update the total number of images
+            total_error_ssm += ssm.item() * inputs.size(0)  # update the total number of images
 
-        print(f'Reconstruction Loss of test: {total_error_ssm/len(dataloader.dataset)}')
-
+        print(f'Reconstruction Loss of test: {total_error_ssm / len(dataloader.dataset)}')

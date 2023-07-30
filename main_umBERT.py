@@ -52,8 +52,8 @@ tops_IDs = np.array(list(tops_mapping.values()))
 embeddings_tops = embeddings[np.array(tops_positions)]
 # compute the IDs of the accessories in the outfits
 accessories_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_3'].unique()}
-accessories_positions = np.array(list(
-    accessories_mapping.keys()))  # these are the positions with respect to the ID list and so in the embeddings matrix
+# these are the positions with respect to the ID list and so in the embeddings matrix
+accessories_positions = np.array(list(accessories_mapping.keys()))
 accessories_IDs = np.array(list(accessories_mapping.values()))
 
 embeddings_accessories = embeddings[accessories_positions]
@@ -80,10 +80,14 @@ df_test_only_compatible = df_test[df_test['compatibility'] == 1].drop(columns='c
 print("create the dataloader for reconstruction task")
 tensor_dataset_train_2 = create_tensor_dataset_from_dataframe(df_train_only_compatible, embeddings, IDs)
 tensor_dataset_test_2 = create_tensor_dataset_from_dataframe(df_test_only_compatible, embeddings, IDs)
-MASK_shoes = torch.randn((1, embeddings.shape[1])) + torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 0, :].mean(dim=0)
-MASK_tops = torch.randn((1, embeddings.shape[1])) + torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 1, :].mean(dim=0)
-MASK_acc = torch.randn((1, embeddings.shape[1])) + torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 2, :].mean(dim=0)
-MASK_bottoms = torch.randn((1, embeddings.shape[1])) + torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 3, :].mean(dim=0)
+MASK_shoes = torch.randn((1, embeddings.shape[1])) + \
+             torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 0, :].mean(dim=0)
+MASK_tops = torch.randn((1, embeddings.shape[1])) + \
+            torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 1, :].mean(dim=0)
+MASK_acc = torch.randn((1, embeddings.shape[1])) + \
+           torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 2, :].mean(dim=0)
+MASK_bottoms = torch.randn((1, embeddings.shape[1])) + \
+               torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 3, :].mean(dim=0)
 MASK_dict = {'shoes': MASK_shoes, 'tops': MASK_tops, 'accessories': MASK_acc, 'bottoms': MASK_bottoms}
 
 tensor_dataset_train_2, tensor_dataset_valid_2, df_train_only_compatible, df_valid_only_compatible = train_test_split(
@@ -203,7 +207,7 @@ model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataload
                                                            optimizer=optimizer, criterion=criterion, n_epochs=n_epochs,
                                                            shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                            accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
-                                                           device=device,)
+                                                           device=device, )
 # fine-tune on task #3
 # define the optimizer
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
@@ -214,8 +218,8 @@ model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reco
 print(f"Best loss reconstruction: {best_loss_reconstruction}")
 print(f"Best loss fine-tune: {best_loss_fine_tune}")
 
-
 # test the model
-test_model(model, device, dataloaders_reconstruction['test'], shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, criterion)
+test_model(model, device, dataloaders_reconstruction['test'], shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs,
+           criterion)
 
 print("THE END")

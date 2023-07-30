@@ -7,8 +7,8 @@ import torch
 from torch.utils.data import DataLoader
 from utility.custom_image_dataset import CustomImageDataset
 from torchvision.transforms import transforms
-from modello_autoencoder_ssimval import AutoEncoder
-from image_to_embeddings_AESSIMVAL import image_to_embedding_ANTONIO
+from models.model_autoencoder_ssimval import AutoEncoder
+from utility.AE_image_to_embedding import AE_image_to_embedding
 from datetime import datetime
 
 # set the working directory to the path of the file
@@ -21,8 +21,7 @@ print("Device used: ", device)
 # define the size of the embeddings
 
 # load the checkpoint
-checkpoint = torch.load(f'../nuovi_embeddings/2023_07_27_trained_fashion_VAE_128.pth')  # map_location=torch.device('cpu')
-# load the model finetuned_fashion_resnet18_512.pth
+checkpoint = torch.load(f'../nuovi_embeddings/2023_07_27_trained_fashion_VAE_128.pth')
 print(f"Loading the trained model")
 model = AutoEncoder()
 model.load_state_dict(checkpoint['model_state_dict'])  # load the weights of the trained model
@@ -37,9 +36,7 @@ print("Loading the image dataset")
 # load the dataset (just for now, we will use the test dataset)
 data_transform = transforms.Compose([  # define the transformations to be applied to the images
     transforms.Resize(128),  # resize the image to 256x256
-    # transforms.CenterCrop(224),  # crop the image to 224x224
     transforms.ToTensor(),  # convert the image to a tensor
-    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
 ])
 
 data_dir = '../dataset_catalogue'  # define the directory of the dataset
@@ -50,7 +47,7 @@ print("Dataset loaded")
 
 print("Computing the embeddings of the dataset")
 # get the embeddings of the dataset, the labels and the ids
-embeddings, IDs = image_to_embedding_ANTONIO(dataloaders, model, device)
+embeddings, IDs = AE_image_to_embedding(dataloaders, model, device)
 print("Embeddings computed")
 print("Saving the embeddings IDs")
 now = datetime.now()

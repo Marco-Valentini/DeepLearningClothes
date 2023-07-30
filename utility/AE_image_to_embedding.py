@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from tqdm import tqdm
+
+
 def AE_image_to_embedding(dataloader, model, device):
     """
     given a dataloader, a model and a device, return the embeddings of the dataset and the labels
@@ -12,10 +14,10 @@ def AE_image_to_embedding(dataloader, model, device):
     # get the embeddings
     embeddings = []  # list to store the embeddings
     with torch.no_grad():  # do not calculate the gradients
-        for inputs, _ in tqdm(dataloader,colour='blue'):  # iterate over the data
+        for inputs, _ in tqdm(dataloader, colour='blue'):  # iterate over the data
             inputs = inputs.to(device)  # move the input images to the device
             _, outputs = model(inputs)  # forward pass
-            embeddings.append(outputs.reshape(outputs.shape[0],-1).cpu().numpy())  # append the embeddings to the list
+            embeddings.append(outputs.reshape(outputs.shape[0], -1).cpu().numpy())  # append the embeddings to the list
 
     embeddings = np.concatenate(embeddings)  # concatenate the embeddings
     # Retrieve the image paths from the dataloader dataset

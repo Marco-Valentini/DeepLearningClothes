@@ -1,4 +1,4 @@
-# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18_512.pth
+# obtain the embeddings of the dataset using the fine-tuned model finetuned_fashion_resnet18
 import json
 import numpy as np
 import torch
@@ -14,14 +14,15 @@ device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 print("Device used: ", device)
 # define the size of the embeddings
 dim_embeddings = 128
-# load thecheckpoint
+# load the checkpoint
 checkpoint = torch.load(f'../checkpoints/finetuned_fashion_resnet18_{dim_embeddings}.pth')
-# load the model finetuned_fashion_resnet18_512.pth
+# load the model finetuned_fashion_resnet18
 print(f"Loading the model finetuned_fashion_resnet18_{dim_embeddings}.pth")
 fashion_resnet18 = resnet18()
 fashion_resnet18 = Resnet18Modified(fashion_resnet18, dim_embeddings=checkpoint['dim_embeddings'], num_classes=4)
 
-fashion_resnet18.load_state_dict(checkpoint['state_dict'])  # load the weights of the model finetuned_fashion_resnet18_512.pth
+# load the weights of the model finetuned_fashion_resnet18
+fashion_resnet18.load_state_dict(checkpoint['state_dict'])
 
 fashion_resnet18.eval()  # set the model to evaluation mode
 fashion_resnet18.to(device)  # set the model to run on the device
@@ -33,9 +34,7 @@ print("Loading the image dataset")
 # load the dataset (just for now, we will use the test dataset)
 data_transform = transforms.Compose([  # define the transformations to be applied to the images
     transforms.Resize(256),  # resize the image to 256x256
-    # transforms.CenterCrop(224),  # crop the image to 224x224
     transforms.ToTensor(),  # convert the image to a tensor
-    #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
 ])
 
 data_dir = '../dataset_catalogue'  # define the directory of the dataset

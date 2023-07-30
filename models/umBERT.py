@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 
-#device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
+# device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")
 device = torch.device("cpu")
+
 
 class umBERT3(nn.Module):
     """
@@ -21,6 +22,7 @@ class umBERT3(nn.Module):
         :param num_encoders: the number of encoders in the encoder stack
         :param num_heads: the number of heads in the multi-head attention
         :param dropout: the dropout probability for the transformer
+        :param MASK_dict: the dictionary of the MASK tokens
         :param dim_feedforward: the dimension of the feedforward layer in the encoder stack (if None, it is set to d_model*4)
         """
         super(umBERT3, self).__init__()
@@ -52,24 +54,24 @@ class umBERT3(nn.Module):
         ), num_layers=num_encoders,
             enable_nested_tensor=(num_heads % 2 == 0))  # the encoder stack is a transformer encoder stack
         self.dec_shoes = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model*2),
+            nn.Linear(self.d_model, self.d_model * 2),
             nn.ReLU(),
-            nn.Linear(self.d_model*2, self.d_model)
+            nn.Linear(self.d_model * 2, self.d_model)
         )
         self.dec_tops = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model*2),
+            nn.Linear(self.d_model, self.d_model * 2),
             nn.ReLU(),
-            nn.Linear(self.d_model*2, self.d_model)
+            nn.Linear(self.d_model * 2, self.d_model)
         )
         self.dec_acc = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model*2),
+            nn.Linear(self.d_model, self.d_model * 2),
             nn.ReLU(),
-            nn.Linear(self.d_model*2, self.d_model)
+            nn.Linear(self.d_model * 2, self.d_model)
         )
         self.dec_bottoms = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model*2),
+            nn.Linear(self.d_model, self.d_model * 2),
             nn.ReLU(),
-            nn.Linear(self.d_model*2, self.d_model)
+            nn.Linear(self.d_model * 2, self.d_model)
         )
 
     def fill_in_the_blank_masking(self, inputs):
@@ -110,29 +112,39 @@ class umBERT3(nn.Module):
         return self.encoder_stack(outfits)
 
     def forward_reconstruction(self, inputs):
+        """
+        This function takes as input an outfit and returns a recostructed embedding for each item in the outfit.
+        :param inputs: the outfit embeddings, a tensor of shape (batch_size, seq_len, d_model)
+        :return: the reconstructed embeddings for each item in the outfits
+        """
         outputs = self.forward(inputs)  # pass the outfits through the encoder stack
-        logits_shoes = self.dec_shoes(outputs[:, 0, :])  # compute the logits for the shoes
-        logits_tops = self.dec_tops(outputs[:, 1, :])  # compute the logits for the tops
-        logits_acc = self.dec_acc(outputs[:, 2, :])  # compute the logits for the accessories
-        logits_bottoms = self.dec_bottoms(outputs[:, 3, :])  # compute the logits for the bottoms
-        return logits_shoes, logits_tops, logits_acc, logits_bottoms
+        rec_shoes = self.dec_shoes(outputs[:, 0, :])  # compute the reconstructed embeddings for the shoes
+        rec_tops = self.dec_tops(outputs[:, 1, :])  # compute the reconstructed embeddings for the tops
+        rec_acc = self.dec_acc(outputs[:, 2, :])  # compute the reconstructed embeddings for the accessories
+        rec_bottoms = self.dec_bottoms(outputs[:, 3, :])  # compute the reconstructed embeddings for the bottoms
+        return rec_shoes, rec_tops, rec_acc, rec_bottoms
 
     def forward_fill_in_the_blank(self, inputs):
+        """
+
+        :param inputs:
+        :return:
+        """
         outputs, masked_positions, masked_items = self.fill_in_the_blank_masking(inputs)  # mask the items
         outputs = self.forward(outputs)  # pass the outfits through the encoder stack
-        logits_shoes = self.dec_shoes(outputs[:, 0, :])  # compute the logits for the shoes
-        logits_tops = self.dec_tops(outputs[:, 1, :])  # compute the logits for the tops
-        logits_acc = self.dec_acc(outputs[:, 2, :])  # compute the logits for the accessories
-        logits_bottoms = self.dec_bottoms(outputs[:, 3, :])  # compute the logits for the bottoms
-        masked_logits = []  # the predictions for the masked items
+        rec_shoes = self.dec_shoes(outputs[:, 0, :])  # reconstruct the embeddings for the shoes
+        rec_tops = self.dec_tops(outputs[:, 1, :])  # reconstruct the embeddings for the tops
+        rec_acc = self.dec_acc(outputs[:, 2, :])  # reconstruct the embeddings for the accessories
+        rec_bottoms = self.dec_bottoms(outputs[:, 3, :])  # reconstruct the embeddings for the bottoms
+        rec_masked = []  # the reconstructed embeddings for the masked items
         for i in range(len(masked_items)):  # for each outfit
             if masked_positions[i] == 0:  # if the masked item is a shoe
-                masked_logits.append(logits_shoes[i])  # add the logits of the masked item to the list
+                rec_masked.append(rec_shoes[i])  # add the reconstructed embedding of the masked item to the list
             elif masked_positions[i] == 1:  # if the masked item is a top
-                masked_logits.append(logits_tops[i])  # add the logits of the masked item to the list
+                rec_masked.append(rec_tops[i])  # add the reconstructed embedding of the masked item to the list
             elif masked_positions[i] == 2:  # if the masked item is an accessory
-                masked_logits.append(logits_acc[i])  # add the logits of the masked item to the list
+                rec_masked.append(rec_acc[i])  # add the reconstructed embedding of the masked item to the list
             elif masked_positions[i] == 3:  # if the masked item is a bottom
-                masked_logits.append(logits_bottoms[i])  # add the logits of the masked item to the list
-        return logits_shoes, logits_tops, logits_acc, logits_bottoms, torch.stack(masked_logits).to(device), \
+                rec_masked.append(rec_bottoms[i])  # add the reconstructed embedding of the masked item to the list
+        return rec_shoes, rec_tops, rec_acc, rec_bottoms, torch.stack(rec_masked).to(device), \
             torch.stack(masked_items).to(device), masked_positions

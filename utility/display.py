@@ -8,25 +8,24 @@ import os
 def display_items(df_reduced, number_of_items=10):
     """
     Given the reduced version of the catalogue, display the first 10 items
-    :param df_reduced:
-    :return:
+    :param df_reduced: the reduced version of the catalogue
+    :return: None
     """
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     indeces = list(df_reduced['ID'])[0:number_of_items]
     labels = list(df_reduced['Semantic_category'])[0:number_of_items]
-    fig = plt.figure(figsize=(25,20))
-    images=[]
+    fig = plt.figure(figsize=(25, 20))
+    images = []
     for idx in range(number_of_items):
         image = cv2.imread('../dataset/images/' + indeces[idx] + '.jpg')
         rgbImg = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         images.append(rgbImg)
 
     for idx in range(number_of_items):
-        ax = fig.add_subplot(2,int(number_of_items/2),idx+1,xticks=[],yticks=[])
+        ax = fig.add_subplot(2, int(number_of_items / 2), idx + 1, xticks=[], yticks=[])
         ax.set_title(labels[idx])
         plt.imshow(images[idx])
     plt.show()
-
 
 
 def display_outfits(outfits: pd.DataFrame, number_of_outfits=5):
@@ -54,10 +53,11 @@ def display_outfits(outfits: pd.DataFrame, number_of_outfits=5):
         images.append(rgbImg4)
         fig = plt.figure(figsize=(25, 20))
         for idx in range(4):
-            ax = fig.add_subplot(1, int(4), idx+1, xticks=[], yticks=[])
+            ax = fig.add_subplot(1, int(4), idx + 1, xticks=[], yticks=[])
             ax.set_title(clothes_list[idx])
             plt.imshow(images[idx])
         plt.show()
+
 
 def display_single_outfit(ID_list: torch.Tensor):
     """
@@ -95,12 +95,12 @@ def display_single_outfit(ID_list: torch.Tensor):
             plt.imshow(images[idx])
         plt.show()
 
+
 def display_predictions(predictions: torch.Tensor, catalogue: pd.DataFrame):
     """
     Given the predictions of the model, display the first 5 items
     :param predictions: the predictions of the model (a tensor containing the indexes of the items in the catalogue)
-    :param num_items: the number of items to display
-    :catalogue: the catalogue of items (a dataframe)
+    :param catalogue: the catalogue of items (a dataframe)
     :return: None
     """
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -111,5 +111,3 @@ def display_predictions(predictions: torch.Tensor, catalogue: pd.DataFrame):
         rgbImg = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         plt.imshow(rgbImg)
         plt.show()
-
-

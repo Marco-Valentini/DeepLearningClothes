@@ -7,9 +7,8 @@ from sklearn.model_selection import train_test_split
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 '''
-this python script takes a dataset of images, 
-splits it into train, val and test sets 
-and organises them in folders with the name of the label associated with each image
+this python script takes a dataset of images, splits it into train, val and test sets and organises them in folders 
+with the name of the label associated with each image
 '''
 root_dir = '../dataset/images/'
 csv_file_path = '../reduced_data/reduced_catalogue.csv'
@@ -22,7 +21,8 @@ labels = list(data.loc[:, 'Semantic_category'].values)
 train_images, test_images, train_labels, test_labels = train_test_split(images, labels, test_size=0.2, random_state=42)
 
 # Further split the train set into train and validation sets
-train_images, val_images, train_labels, val_labels = train_test_split(train_images, train_labels, test_size=0.2, random_state=42)
+train_images, val_images, train_labels, val_labels = train_test_split(train_images, train_labels, test_size=0.2,
+                                                                      random_state=42)
 
 # organise the train set in folders
 for idx in range(len(train_images)):

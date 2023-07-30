@@ -4,7 +4,7 @@ import os
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 from torchvision.datasets import ImageFolder
-from models.model_autoencoder_ssimval import AutoEncoder, fine_tune_model, test_model, freeze, SSIM_Loss
+from models.model_autoencoder_ssimval import AutoEncoder, fit, test_model, SSIM_Loss
 import torch
 
 # use GPU if available (mps is mac M1 pro GPU)
@@ -68,8 +68,8 @@ criterion = SSIM_Loss()
 num_epochs = 50  # number of epochs to train the model
 
 # train the model
-model = fine_tune_model(model=model, freezer=freeze, optimizer=optimizer, dataloaders=dataloaders, device=device,
-                        criterion=criterion, n_layers_to_freeze=0, num_epochs=num_epochs)
+model = fit(model=model, optimizer=optimizer, dataloaders=dataloaders, device=device,
+            criterion=criterion, num_epochs=num_epochs)
 
 # test the model
 test_model(model, dataloaders['test'], device, criterion)

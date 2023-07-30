@@ -11,6 +11,7 @@ import json
 # set the working directory to the path of the file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+
 # define the required functions
 def retrieve_item(set_id_n):
     """
@@ -87,11 +88,12 @@ def remove_and_compact(df):
         else:
             filtered_row = [None, None, None, None]  # substitute with None values (will be dropped later)
         df_new.loc[i] = filtered_row  # insert the filtered row in the new dataframe
-    df_new.insert(0, column='compatibility', value=compatibility,
-                  allow_duplicates=True)  # insert the compatibility column
+    # insert the compatibility column
+    df_new.insert(0, column='compatibility', value=compatibility, allow_duplicates=True)
     df_new = df_new.dropna(axis=0)  # drop the rows containing None values
     df_new.reset_index(inplace=True, drop=True)  # reset the index
     return df_new
+
 
 def count_categories(column):
     """
@@ -113,13 +115,13 @@ def count_categories(column):
         elif category == 'shoes':
             count_shoes += 1
         elif category == 'accessories':
-            count_accessories +=1
-    return count_tops,count_bottoms, count_shoes, count_accessories
+            count_accessories += 1
+    return count_tops, count_bottoms, count_shoes, count_accessories
 
 
 # import the catalogue ID-Category
 catalogue = pd.read_csv('../reduced_data/reduced_catalogue.csv')
-for fold in ['nondisjoint','disjoint']:
+for fold in ['nondisjoint', 'disjoint']:
     for data_set in ['train', 'test', 'valid']:  # for each data set apply the following operations
         print(f'Processing {data_set} of {fold}...')
         # read the data from the <train, test, valid>.txt file
@@ -157,8 +159,10 @@ for fold in ['nondisjoint','disjoint']:
 
         # check that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)
         print('Checking that there are no None value in item 1,2,3,4 (all the outfits have at least 4 items)...')
-        if df['item_1'].isna().sum() == 0 and df['item_2'].isna().sum() == 0 and df['item_3'].isna().sum() == 0 and df[
-            'item_4'].isna().sum() == 0:
+        if df['item_1'].isna().sum() == 0 and \
+                df['item_2'].isna().sum() == 0 and \
+                df['item_3'].isna().sum() == 0 and \
+                df['item_4'].isna().sum() == 0:
             print('OK - no outfit with less than 4 items in the DataFrame')
 
         # set to None all the items not belonging to the allowed categories
@@ -212,7 +216,7 @@ for fold in ['nondisjoint','disjoint']:
         destination_path = f'../reduced_data/{fold}_reduced_compatibility_{data_set}.csv'
         df.to_csv(destination_path, index=False)
 
-# join the disjoint and non disjoint dataset in a single one
+# join the disjoint and non-disjoint dataset in a single one
 df_train_disjoint = pd.read_csv('../reduced_data/disjoint_reduced_compatibility_train.csv')
 df_train_nondisjoint = pd.read_csv('../reduced_data/nondisjoint_reduced_compatibility_train.csv')
 df_valid_disjoint = pd.read_csv('../reduced_data/disjoint_reduced_compatibility_valid.csv')
@@ -235,4 +239,3 @@ os.remove('../reduced_data/disjoint_reduced_compatibility_valid.csv')
 os.remove('../reduced_data/nondisjoint_reduced_compatibility_valid.csv')
 os.remove('../reduced_data/disjoint_reduced_compatibility_test.csv')
 os.remove('../reduced_data/nondisjoint_reduced_compatibility_test.csv')
-

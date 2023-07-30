@@ -9,12 +9,15 @@ import tqdm
 
 def create_tensor_dataset_from_dataframe(df_outfit: pd.DataFrame, embeddings, ids):
     """
-    This function takes as input a dataframe containing the labels of the items in the outfit, the embeddings of the items and the ids of the items.
-    It returns a tensor of shape (n_outfits, seq_len, embedding_size) containing the embeddings of the items in the outfit and the CLS token.
+    This function takes as input a dataframe containing the labels of the items in the outfit,
+    the embeddings of the items and the ids of the items.
+    It returns a tensor of shape (n_outfits, seq_len, embedding_size) containing the embeddings
+    of the items in the outfit and the CLS token.
     :param df_outfit:  dataframe containing the labels of the items in the outfit
     :param embeddings:  embeddings of the items in the outfit (a tensor of shape (n_items, embedding_size))
     :param ids:  ids of the items in the outfit (a list of length n_items)
-    :return: a tensor of shape (n_outfits,seq_len, embedding_size) containing the embeddings of the items in the outfit and the CLS token
+    :return: a tensor of shape (n_outfits,seq_len, embedding_size) containing the embeddings of the items in the outfit
+    and the CLS token
     """
     dataset = np.zeros((df_outfit.shape[0], 4, embeddings.shape[1]))
     for i in range(df_outfit.shape[0]):  # for each outfit
@@ -38,7 +41,7 @@ def find_closest_embeddings(recons_embeddings, embeddings, IDs_list, device):
     embeddings = torch.from_numpy(embeddings).to(device)  # convert to tensor
     closest_embeddings = []
     for i in range(recons_embeddings.shape[0]):  # for each reconstructed embedding in the batch
-        # compute the cosine similarity between the reconstructed embedding and the embeddings of the catalogue
+        # compute the euclidean distances between the reconstructed embedding and the embeddings of the catalogue
         distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), embeddings)
         # find the index of the closest embedding
         idx = torch.min(distances, dim=1).indices
@@ -48,7 +51,8 @@ def find_closest_embeddings(recons_embeddings, embeddings, IDs_list, device):
     return torch.LongTensor(closest_embeddings).to(device)
 
 
-def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_positions, shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, device, topk=10):
+def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_positions, shoes_IDs, tops_IDs,
+                                  accessories_IDs, bottoms_IDs, device, topk=10):
     """
     Find the top k closest embeddings in the catalogue to the reconstructed embeddings for each masked position in the outfit
     :param recons_embeddings: the reconstructed embeddings (tensor) (shape: (batch_size, embedding_size))
@@ -79,7 +83,8 @@ def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_pos
             idx = idx.tolist()
             closest_embeddings.append([tops_IDs[j] for j in idx])
         elif pos == 2:  # accessories
-            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0), torch.Tensor(embeddings_accessories).to(device))
+            distances = torch.cdist(recons_embeddings[i, :].unsqueeze(0),
+                                    torch.Tensor(embeddings_accessories).to(device))
             idx = torch.topk(distances, k=topk, largest=False).indices
             idx = idx.tolist()
             closest_embeddings.append([accessories_IDs[j] for j in idx])
@@ -89,6 +94,7 @@ def find_top_k_closest_embeddings(recons_embeddings, embeddings_dict, masked_pos
             idx = idx.tolist()
             closest_embeddings.append([bottoms_IDs[j] for j in idx])
     return closest_embeddings
+
 
 def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, tops_IDs,
                              accessories_IDs, bottoms_IDs, device):
@@ -101,11 +107,11 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
     :param n_epochs: the number of epochs
     :return: the model and the minimum validation loss
     """
-    # the model given from te main is already on the GPU
+    # the model given from te main is already on the device
     train_loss = []  # keep track of the loss of the training phase
     val_loss = []  # keep track of the loss of the validation phase
-    train_acc_decoding = []  # keep track of the accuracy of the training phase on the MLM classification task
-    val_acc_decoding = []  # keep track of the accuracy of the validation phase on the MLM classification task
+    train_acc_decoding = []  # keep track of the accuracy of the training phase
+    val_acc_decoding = []  # keep track of the accuracy of the validation phase
 
     valid_loss_min = np.Inf  # track change in validation loss
     early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
@@ -125,7 +131,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
             accuracy_acc = 0.0  # keep track of the accuracy of accessories classification task
             accuracy_bottoms = 0.0  # keep track of the accuracy of bottoms classification task
             for inputs, labels in tqdm.tqdm(dataloaders[phase], colour='blue'):  # for each batch
-                inputs = inputs.to(device)  # move the input tensors to the GPU
+                inputs = inputs.to(device)  # move the input tensors to the device
                 # labels are the IDs of the items in the outfit
                 labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
                 labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
@@ -153,8 +159,10 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                 # compute the closest embeddings to the reconstructed embeddings
                 pred_shoes = find_closest_embeddings(logits_shoes, model.catalogue_dict['shoes'], shoes_IDs, device)
                 pred_tops = find_closest_embeddings(logits_tops, model.catalogue_dict['tops'], tops_IDs, device)
-                pred_acc = find_closest_embeddings(logits_acc, model.catalogue_dict['accessories'], accessories_IDs, device)
-                pred_bottoms = find_closest_embeddings(logits_bottoms, model.catalogue_dict['bottoms'], bottoms_IDs, device)
+                pred_acc = find_closest_embeddings(logits_acc, model.catalogue_dict['accessories'], accessories_IDs,
+                                                   device)
+                pred_bottoms = find_closest_embeddings(logits_bottoms, model.catalogue_dict['bottoms'], bottoms_IDs,
+                                                       device)
 
                 # update the accuracy of the reconstruction task
                 accuracy_shoes += np.sum(pred_shoes.cpu().numpy() == labels_shoes.cpu().numpy())
@@ -164,12 +172,13 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
 
             # compute the average loss of the epoch
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            # compute the average accuracy of the MLM task of the epoch
+            # compute the average accuracy of the reconstruction of the epoch
             epoch_accuracy_shoes = accuracy_shoes / len(dataloaders[phase].dataset)
             epoch_accuracy_tops = accuracy_tops / len(dataloaders[phase].dataset)
             epoch_accuracy_acc = accuracy_acc / len(dataloaders[phase].dataset)
             epoch_accuracy_bottoms = accuracy_bottoms / len(dataloaders[phase].dataset)
-            epoch_accuracy_reconstruction = (epoch_accuracy_shoes + epoch_accuracy_tops + epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
+            epoch_accuracy_reconstruction = (epoch_accuracy_shoes + epoch_accuracy_tops +
+                                             epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
 
             print(f'{phase} Loss: {epoch_loss}')
             print(f'{phase} Accuracy (shoes): {epoch_accuracy_shoes}')
@@ -210,7 +219,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
 
 
 def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, tops_IDs,
-                             accessories_IDs, bottoms_IDs, device):
+              accessories_IDs, bottoms_IDs, device):
     """
     This function performs the pre-training of the umBERT model on the fill in the blank task.
     :param model: the umBERT model
@@ -220,7 +229,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
     :param n_epochs: the number of epochs
     :return: the model and the minimum validation loss
     """
-    # the model given from te main is already on the GPU
+    # the model given from te main is already moved to the device
     train_loss = []  # keep track of the loss of the training phase
     val_loss = []  # keep track of the loss of the validation phase
     train_hit_ratio = []  # keep track of the accuracy of the training phase on the fill in the blank task
@@ -247,7 +256,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
             accuracy_acc = 0.0  # keep track of the accuracy of the fill in the blank task
             accuracy_bottoms = 0.0  # keep track of the accuracy of the fill in the blank task
             for inputs, labels in tqdm.tqdm(dataloaders[phase], colour='green'):  # for each batch
-                inputs = inputs.to(device)  # move the input tensors to the GPU
+                inputs = inputs.to(device)  # move the inputs to the device
                 # labels are the IDs of the items in the outfit
                 labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
                 labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
@@ -256,18 +265,18 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
 
                 optimizer.zero_grad()  # zero the parameter gradients
 
-                with torch.set_grad_enabled(
-                        phase == 'train'):  # forward + backward + optimize only if in training phase
+                with torch.set_grad_enabled(phase == 'train'):
                     # compute the forward pass
-                    logits_shoes, logits_tops, logits_acc, logits_bottoms, masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
+                    logits_shoes, logits_tops, logits_acc, logits_bottoms, masked_logits, \
+                        masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
 
                     # compute the loss
                     # compute the loss for each masked item
-                    loss_shoes = criterion(logits_shoes, inputs[:, 0].repeat(4, 1))  # compute the loss for the masked item
-                    loss_tops = criterion(logits_tops, inputs[:, 1].repeat(4, 1))  # compute the loss for the masked item
-                    loss_acc = criterion(logits_acc, inputs[:, 2].repeat(4, 1))  # compute the loss for the masked item
-                    loss_bottoms = criterion(logits_bottoms, inputs[:, 3].repeat(4, 1))  # compute the loss for the masked item
-                    # normalize the loss
+                    loss_shoes = criterion(logits_shoes, inputs[:, 0].repeat(4, 1))
+                    loss_tops = criterion(logits_tops, inputs[:, 1].repeat(4, 1))
+                    loss_acc = criterion(logits_acc, inputs[:, 2].repeat(4, 1))
+                    loss_bottoms = criterion(logits_bottoms, inputs[:, 3].repeat(4, 1))
+
                     loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
 
                     if phase == 'train':
@@ -276,7 +285,6 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
 
                 # update the loss value (multiply by the batch size)
                 running_loss += loss.item() * inputs.size(0)
-
 
                 pred_shoes = find_closest_embeddings(logits_shoes, model.catalogue_dict['shoes'], shoes_IDs, device)
                 pred_tops = find_closest_embeddings(logits_tops, model.catalogue_dict['tops'], tops_IDs, device)
@@ -347,9 +355,9 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                                   'dim_feedforward': model.dim_feedforward,
                                   'model_state_dict': model.state_dict()}
                     # save the checkpoint dictionary to a file
-                    now = datetime.now()
                     torch.save(checkpoint,
-                               f"./models/umBERT_FT_NE_{model.num_encoders}_NH_{model.num_heads}_D_{model.dropout:.5f}_LR_{optimizer.param_groups[0]['lr']}_OPT_{type(optimizer).__name__}.pth")
+                               f"./models/umBERT_FT_NE_{model.num_encoders}_NH_{model.num_heads}_D_{model.dropout:.5f}"
+                               f"_LR_{optimizer.param_groups[0]['lr']}_OPT_{type(optimizer).__name__}.pth")
                     valid_loss_min = epoch_loss
                     early_stopping = 0  # reset early stopping counter
                     best_model = deepcopy(model)
@@ -370,13 +378,23 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
     plt.show()
     return best_model, valid_loss_min
 
+
 def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, criterion):
+    """
+    Test the model on the test set of the fill in the blank task
+    :param model: the model to test
+    :param device: the device to use
+    :param dataloader: the dataloader of the test set
+    :param shoes_IDs: the IDs of the shoes
+    :param tops_IDs: the IDs of the tops
+    :param accessories_IDs: the IDs of the accessories
+    :param bottoms_IDs: the IDs of the bottoms
+    :param criterion: the loss function
+    :return: None
+    """
     running_loss = 0.0  # keep track of the loss
     hit_ratio = 0.0  # keep track of the accuracy of the fill in the blank task
-    # batch_number = 0
     for inputs, labels in dataloader:  # for each batch
-        # print(f'Batch: {batch_number}/{len(dataloaders[phase])}')
-        # batch_number += 1
         inputs = inputs.to(device)  # move the input tensors to the GPU
         # labels are the IDs of the items in the outfit
         labels_shoes = labels[:, 0].to(device)  # move the labels_shoes to the device
@@ -384,10 +402,10 @@ def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, 
         labels_acc = labels[:, 2].to(device)  # move the labels_acc to the device
         labels_bottoms = labels[:, 3].to(device)  # move the labels_bottoms to the device
 
-        with torch.set_grad_enabled(False):  # forward + backward + optimize only if in training phase
+        with torch.set_grad_enabled(False):
             # compute the forward pass
-            logits_shoes, logits_tops, logits_acc, logits_bottoms, masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(
-                inputs)
+            logits_shoes, logits_tops, logits_acc, logits_bottoms, \
+                masked_logits, masked_items, masked_positions = model.forward_fill_in_the_blank(inputs)
 
             # compute the loss
             # compute the loss for each masked item
@@ -398,7 +416,6 @@ def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, 
             # normalize the loss
             loss = loss_shoes + loss_tops + loss_acc + loss_bottoms
 
-
         # update the loss value (multiply by the batch size)
         running_loss += loss.item() * inputs.size(0)
 
@@ -406,8 +423,8 @@ def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, 
 
         #  implement top-k accuracy
         top_k_predictions = find_top_k_closest_embeddings(masked_logits, model.catalogue_dict, masked_positions,
-                                                          shoes_IDs, tops_IDs,
-                                                          accessories_IDs, bottoms_IDs, device, topk=10)
+                                                          shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs,
+                                                          device, topk=10)
 
         masked_IDs = []
 
@@ -421,10 +438,7 @@ def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, 
                 hit_ratio += 1
 
     # compute the average loss of the epoch
-    epoch_loss = running_loss / (len(dataloader.dataset)*4)
-    # compute the average accuracy of the fill in the blank task of the epoch
-    epoch_hit_ratio = hit_ratio  # / len(dataloaders[phase].dataset) # TODO valuta per cosa dividi qui
-    print(f'Test Loss: {epoch_loss}')
-    print(f'Test Hit ratio (fill in the blank): {epoch_hit_ratio}')
-    print(f'Test Hit ratio normalized (fill in the blank): {epoch_hit_ratio/(len(dataloader.dataset)*4)}')
-
+    loss = running_loss / (len(dataloader.dataset) * 4)
+    print(f'Test Loss: {loss}')
+    print(f'Test Hit ratio (fill in the blank): {hit_ratio}')
+    print(f'Test Hit ratio normalized (fill in the blank): {hit_ratio / (len(dataloader.dataset) * 4)}')

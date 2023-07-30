@@ -25,43 +25,46 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 device = torch.device("mps" if torch.backends.mps.is_built() else "cpu")  # use the mps device if available
 
-# This code expects data to be in same format as Imagenet.
-# Thus, the dataset has three folds, named 'train', 'val' and 'test'.
-# The 'train' folder contains training set and 'val' folder contains validation set on which accuracy is measured.
-# The 'test' folder is used for testing the pre-trained model.
+"""
+This code expects data to be in same format as Imagenet.
+Thus, the dataset has three folds, named 'train', 'val' and 'test'.
+The 'train' folder contains training set and 'val' folder contains validation set on which accuracy is measured.
+The 'test' folder is used for testing the pre-trained model.
 
-# The structure within 'train', 'val' and 'test' folders will be the same.
-# They both contain one folder per class. All the images of that class are inside the folder named by class name.
+The structure within 'train', 'val' and 'test' folders will be the same.
+They both contain one folder per class. All the images of that class are inside the folder named by class name.
 
-# So, the structure looks like this :
-# |- data_cnn_fine_tuning
-#      |- train
-#            |- accessories
-#                 |- accessory_image_1
-#                 |- accessory_image_2
-#                        .....
-#            |- bottoms
-#                 |- bottom_image_1
-#                 |- bottom_image_2
-#                        .....
-#            |- shoes
-#                 |- shoes_image_1
-#                 |- shoes_image_2
-#                        .....
-#            |- tops
-#                 |- top_image_1
-#                 |- top_image_2
-#                        .....
-#      |- val
-#            |- accessories
-#            |- bottoms
-#            |- shoes
-#            |- tops
-#      |- test
-#            |- accessories
-#            |- bottoms
-#            |- shoes
-#            |- tops
+So, the structure looks like this :
+|- data_cnn_fine_tuning
+     |- train
+           |- accessories
+                |- accessory_image_1
+                |- accessory_image_2
+                       .....
+           |- bottoms
+                |- bottom_image_1
+                |- bottom_image_2
+                       .....
+           |- shoes
+                |- shoes_image_1
+                |- shoes_image_2
+                       .....
+           |- tops
+                |- top_image_1
+                |- top_image_2
+                       .....
+     |- val
+           |- accessories
+           |- bottoms
+           |- shoes
+           |- tops
+     |- test
+           |- accessories
+           |- bottoms
+           |- shoes
+           |- tops
+
+"""
 
 # data loading and shuffling/augmentation/normalization.
 # Normalization is a common technique in computer vision which helps the network to converge faster.
@@ -77,19 +80,22 @@ data_transforms = {
             # vision to augment the size of your data set. Firstly, it increases the number of times the network gets to
             # see the same thing, and secondly it adds rotational invariance to your networks learning.
             transforms.ToTensor(),  # convert the image to a tensor
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
+            # normalize the image to the ImageNet mean and standard deviation
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ]),
     'val': transforms.Compose([  # Just normalization for validation, no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor(),  # convert the image to a tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
+        # normalize the image to the ImageNet mean and standard deviation
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ]),
     'test': transforms.Compose([  # Just Resizing for testing, no normalization and no augmentation.
         transforms.Resize(256),  # resize the image to 256x256
         transforms.CenterCrop(224),  # crop the image to 224x224
         transforms.ToTensor(),  # convert the image to a tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # normalize the image to the ImageNet mean and standard deviation
+        # normalize the image to the ImageNet mean and standard deviation
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 }
 
@@ -131,6 +137,7 @@ def freeze(model, n=None):
             if count < n:
                 param.requires_grad = False
             count += 1
+
 
 # fine-tune the model
 def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, num_epochs=20):
@@ -190,8 +197,10 @@ def fine_tune_model(model, freezer, optimizer, criterion, dataloaders, device, n
             epoch_acc = correct / len(image_datasets[phase])  # calculate the accuracy
 
             # compute  precision, recall and F1 score
-            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(), preds.cpu().numpy(), average='macro')
-            print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(),
+                                                                             preds.cpu().numpy(), average='macro')
+            print(f'{phase} Loss: {epoch_loss}, Accuracy: {epoch_acc}, Precision: {precision}, Recall: {recall}, '
+                  f'F1_score: {f1_score}')
 
             if phase == 'train':
                 train_loss.append(epoch_loss)
@@ -243,7 +252,9 @@ def test_model(model, dataloader, device):
 
             total += labels.size(0)  # update the total number of images
             correct += (preds == labels).sum().item()  # update the number of correct predictions
-            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(), preds.cpu().numpy(), average='macro', zero_division=0)
+            precision, recall, f1_score, _ = precision_recall_fscore_support(labels.reduced_catalogue.cpu().numpy(),
+                                                                             preds.cpu().numpy(), average='macro',
+                                                                             zero_division=0)
 
         print(f'Accuracy: {correct / total}, Precision: {precision}, Recall: {recall}, F1_score: {f1_score}')
 

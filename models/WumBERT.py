@@ -9,6 +9,12 @@ import tqdm
 
 
 class WumBERT(nn.Module):
+    """
+    This class implements the WumBERT model.
+    The intuition behind the model, and the main difference with the umBERT model, is that here the embeddings of the
+    items are not fixed, but they are learned during the training process of the model.
+    """
+
     def __init__(self, embeddings: np.ndarray, num_encoders, num_heads, dropout, shoes_idx, tops_idx, accessories_idx,
                  bottoms_idx, dim_feedforward=None):
         super(WumBERT, self).__init__()
@@ -70,9 +76,11 @@ class WumBERT(nn.Module):
 
     def forward_reconstruction(self, input_idx):
         """
-        task #1 reconstruction: given the indexes of the embeddings of the shoes, tops, accessories and bottoms, reconstruct the embeddings
+        task #1 reconstruction: given the indexes of the embeddings of the shoes, tops, accessories and bottoms,
+        reconstruct the embeddings
         :param input_idx: indexes of the embeddings to give as input to the model
-        :return: reconstructed embeddings of the shoes, tops, accessories and bottoms given as input, each one (batch_size, embedding_dim)
+        :return: reconstructed embeddings of the shoes, tops, accessories and bottoms given as input,
+        each one (batch_size, embedding_dim)
         """
         input = self.embeddings(input_idx)  # input idx shoud be batch_size x seq_length
         output = self.forward(input)
@@ -84,8 +92,8 @@ class WumBERT(nn.Module):
 
     def forward_with_masking(self, input_idx):
         """
-        task #2 fill in the blank: given the indexes of the embeddings of the shoes, tops, accessories and bottoms, reconstruct the embeddings
-        after masking one of the four embeddings for each embeddings
+        task #2 fill in the blank: given the indexes of the embeddings of the shoes, tops, accessories and bottoms,
+        reconstruct the embeddings after masking one of the four embedding for each embedding.
         :param input_idx: IDs of the outfit in input
         :return: reconstructed embeddings of the shoes, tops, accessories and bottoms given as input, each one
         (batch_size, embedding_dim) starting from the embeddings of the masked items
@@ -120,7 +128,7 @@ class WumBERT(nn.Module):
 
     def fit_reconstruction(self, dataloaders, device, epochs, criterion, optimizer):
         """
-        Train the model on task #1 reconstruction and save the best model
+        Train the model on task #1 reconstruction
         :param dataloaders: dictionary containing the dataloaders of the training and validation sets
         :param device: device to run the model on
         :param epochs: number of epochs to train the model
@@ -161,9 +169,9 @@ class WumBERT(nn.Module):
                         rec_shoes, rec_tops, rec_acc, rec_bottoms = self.forward_reconstruction(inputs)
                         # the total loss is computed as a sum
                         loss = criterion(rec_shoes, self.embeddings(inputs)[:, 0, :]) + \
-                               criterion(rec_tops,self.embeddings(inputs)[:, 1, :]) + \
+                               criterion(rec_tops, self.embeddings(inputs)[:, 1, :]) + \
                                criterion(rec_acc, self.embeddings(inputs)[:, 2, :]) + \
-                               criterion(rec_bottoms,self.embeddings(inputs)[:, 3, :])
+                               criterion(rec_bottoms, self.embeddings(inputs)[:, 3, :])
                         # update the model parameters only in the training phase
                         if phase == 'train':
                             loss.backward()
@@ -213,7 +221,7 @@ class WumBERT(nn.Module):
                     # save model if validation loss has decreased
                     if epoch_loss <= valid_loss_min:
                         print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
-                            valid_loss_min,epoch_loss))
+                            valid_loss_min, epoch_loss))
                         print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
                             epoch_accuracy_reconstruction))
                         valid_loss_min = epoch_loss  # update the minimum validation loss
@@ -238,6 +246,15 @@ class WumBERT(nn.Module):
         return best_model, valid_loss_min
 
     def fit_fill_in_the_blank(self, dataloaders, device, epochs, criterion, optimizer):
+        """
+        Fine-tune the model on the fill-in-the-blank task
+        :param dataloaders: the dataloaders of the training and validation sets
+        :param device: the device on which the model is trained
+        :param epochs: the number of epochs
+        :param criterion: the loss function
+        :param optimizer: the optimizer
+        :return: the best model and the minimum validation loss
+        """
         train_loss = []  # keep track of the loss of the training phase
         val_loss = []  # keep track of the loss of the validation phase
         train_hit_ratio = []  # keep track of the accuracy of the training phase on the MLM reconstruction task
@@ -266,14 +283,12 @@ class WumBERT(nn.Module):
                     inputs = inputs.repeat_interleave(4, dim=0)
                     optimizer.zero_grad()
                     with torch.set_grad_enabled(phase == 'train'):
-                        rec_shoes, rec_tops, rec_acc, rec_bottoms, masked_logits, masked_positions, masked_items = self.forward_with_masking(
-                            inputs)
-                        loss = criterion(rec_shoes, self.embeddings(inputs)[:, 0, :]) + criterion(rec_tops,
-                                                                                                  self.embeddings(
-                                                                                                      inputs)[:, 1,
-                                                                                                  :]) + criterion(
-                            rec_acc, self.embeddings(inputs)[:, 2, :]) + criterion(rec_bottoms,
-                                                                                   self.embeddings(inputs)[:, 3, :])
+                        rec_shoes, rec_tops, rec_acc, rec_bottoms, \
+                            masked_logits, masked_positions, masked_items = self.forward_with_masking(inputs)
+                        loss = criterion(rec_shoes, self.embeddings(inputs)[:, 0, :]) \
+                               + criterion(rec_tops, self.embeddings(inputs)[:, 1, :]) \
+                               + criterion(rec_acc, self.embeddings(inputs)[:, 2, :]) \
+                               + criterion(rec_bottoms, self.embeddings(inputs)[:, 3, :])
                         if phase == 'train':
                             loss.backward()
                             optimizer.step()
@@ -288,12 +303,21 @@ class WumBERT(nn.Module):
                         torch.LongTensor(list(self.accessories_idx)).to(device)), self.accessories_idx)
                     pred_bottoms = find_closest_embeddings(rec_bottoms, self.embeddings(
                         torch.LongTensor(list(self.bottoms_idx)).to(device)), self.bottoms_idx)
-                    pred_masked = find_top_k_closest_embeddings(recons_embeddings = masked_logits, masked_positions = masked_positions,
-                    shoes_emebeddings = self.embeddings(torch.LongTensor(list(self.shoes_idx)).to(device)),
-                    shoes_idx = self.shoes_idx, tops_embeddings = self.embeddings(torch.LongTensor(list(self.tops_idx)).to(device)),
-                    tops_idx = self.tops_idx, accessories_embeddings = self.embeddings(torch.LongTensor(list(self.accessories_idx)).to(device)),
-                    accessories_idx = self.accessories_idx, bottoms_embeddings = self.embeddings(torch.LongTensor(list(self.bottoms_idx)).to(device)),
-                    bottoms_idx = self.bottoms_idx, topk=10)
+                    pred_masked = find_top_k_closest_embeddings(recons_embeddings=masked_logits,
+                                                                masked_positions=masked_positions,
+                                                                shoes_emebeddings=self.embeddings(torch.LongTensor(
+                                                                    list(self.shoes_idx)).to(device)),
+                                                                shoes_idx=self.shoes_idx,
+                                                                tops_embeddings=self.embeddings(torch.LongTensor(
+                                                                    list(self.tops_idx)).to(device)),
+                                                                tops_idx=self.tops_idx,
+                                                                accessories_embeddings=self.embeddings(torch.LongTensor(
+                                                                    list(self.accessories_idx)).to(device)),
+                                                                accessories_idx=self.accessories_idx,
+                                                                bottoms_embeddings=self.embeddings(torch.LongTensor(
+                                                                    list(self.bottoms_idx)).to(device)),
+                                                                bottoms_idx=self.bottoms_idx,
+                                                                topk=10)
 
                     # update the accuracy of the reconstruction task
                     accuracy_shoes += np.sum(np.array(pred_shoes) == inputs[:, 0].cpu().numpy())
@@ -315,7 +339,7 @@ class WumBERT(nn.Module):
                 epoch_accuracy_reconstruction = (epoch_accuracy_shoes + epoch_accuracy_tops +
                                                  epoch_accuracy_acc + epoch_accuracy_bottoms) / 4
 
-                epoch_hit_ratio = hit_ratio # / len(dataloaders[phase].dataset)
+                epoch_hit_ratio = hit_ratio  # / len(dataloaders[phase].dataset)
                 print(f'{phase} Loss: {epoch_loss}')
                 print(f'{phase} Accuracy (shoes): {epoch_accuracy_shoes}')
                 print(f'{phase} Accuracy (tops): {epoch_accuracy_tops}')
@@ -348,8 +372,9 @@ class WumBERT(nn.Module):
                                       'embeddings': self.embeddings.weight.data.cpu().numpy(),
                                       'model_state_dict': self.state_dict()}
                         # save the checkpoint dictionary to a file
-                        torch.save(checkpoint,
-                                   f"./models/WumBERT_FT_NE_{self.num_encoders}_NH_{self.num_heads}_D_{self.dropout:.5f}_LR_{optimizer.param_groups[0]['lr']}_OPT_{type(optimizer).__name__}.pth")
+                        torch.save(checkpoint, f"./models/WumBERT_FT_NE_{self.num_encoders}_NH_{self.num_heads}"
+                                               f"_D_{self.dropout:.5f}_LR_{optimizer.param_groups[0]['lr']}"
+                                               f"_OPT_{type(optimizer).__name__}.pth")
                         valid_loss_min = epoch_loss  # update the minimum validation loss
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)
