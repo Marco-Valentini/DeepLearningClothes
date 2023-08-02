@@ -3,10 +3,12 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset
 
+
 class CustomImageDataset(Dataset):
     """
     Custom dataset class for images in a folder with no labels
     """
+
     def __init__(self, root_dir, data_transform=None):
         """
         This method is called when you instantiate the class
