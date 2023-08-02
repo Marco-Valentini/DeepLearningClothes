@@ -260,7 +260,7 @@ def test_model(model, dataloader, device):
 
 
 num_classes = 4  # number of classes in the dataset (4 in our case)
-dim_embeddings = 32  # dimension of the embeddings to be learned
+dim_embeddings = 128  # dimension of the embeddings to be learned
 
 # Load the pre-trained ResNet18 model and modify the last fully connected layer
 weights = ResNet18_Weights.IMAGENET1K_V1  # use the weights trained on ImageNet

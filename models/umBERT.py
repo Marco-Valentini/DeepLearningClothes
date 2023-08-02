@@ -123,9 +123,12 @@ class umBERT(nn.Module):
 
     def forward_fill_in_the_blank(self, inputs):
         """
-
-        :param inputs:
-        :return:
+        This function takes as input an outfit and returns a recostructed embedding for each item in the outfit.
+        In addition, it returns the reconstructed embeddings for the masked items.
+        :param inputs: the outfit embeddings, a tensor of shape (batch_size, seq_len, d_model)
+        :return: the reconstructed embeddings for each item in the outfits, the reconstructed embeddings for the
+        masked items in the outfits, the original items in the outfits and the position of the masked items in the
+        outfits
         """
         outputs, masked_positions, masked_items = self.fill_in_the_blank_masking(inputs)  # mask the items
         outputs = self.forward(outputs)  # pass the outfits through the encoder stack
