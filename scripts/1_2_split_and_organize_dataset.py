@@ -30,7 +30,7 @@ for idx in range(len(train_images)):
     image_path = os.path.join(root_dir, image_name)
     image = Image.open(image_path)
     label = train_labels[idx]
-    new_image_path = f'../dataset_cnn_fine_tuning/train/{label}/{image_name}'
+    new_image_path = f'../images_categorized/train/{label}/{image_name}'
     image.save(new_image_path)
 
 # organise the val set in folder
@@ -39,7 +39,7 @@ for idx in range(len(val_images)):
     image_path = os.path.join(root_dir, image_name)
     image = Image.open(image_path)
     label = val_labels[idx]
-    new_image_path = f'../dataset_cnn_fine_tuning/val/{label}/{image_name}'
+    new_image_path = f'../images_categorized/val/{label}/{image_name}'
     image.save(new_image_path)
 
 # organise the test set in folder
@@ -48,5 +48,5 @@ for idx in range(len(test_images)):
     image_path = os.path.join(root_dir, image_name)
     image = Image.open(image_path)
     label = test_labels[idx]
-    new_image_path = f'../dataset_cnn_fine_tuning/test/{label}/{image_name}'
+    new_image_path = f'../images_categorized/test/{label}/{image_name}'
     image.save(new_image_path)
