@@ -327,7 +327,7 @@ class WumBERT(nn.Module):
 
                     # compute the hit ratio
                     for i in range(len(pred_masked)):
-                        if masked_items[i] in pred_masked[i]:
+                        if masked_items[i] in pred_masked[i]: #TODO in debug controlla questo pred masked che cosa contiene
                             hit_ratio += 1
 
                 epoch_loss = running_loss / (len(dataloaders[phase].dataset) * 4)
