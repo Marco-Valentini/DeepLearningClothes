@@ -33,7 +33,7 @@ print('Compatibility dataset loaded!')
 with open("reduced_data/AE_IDs_list", "r") as fp:
     IDs = json.load(fp)
 # load the embeddings
-with open(f'./nuovi_embeddings/2023_07_27AE_embeddings_128.npy', 'rb') as f:
+with open(f'./reduced_data/AE_embeddings_128.npy', 'rb') as f:
     embeddings = np.load(f)
 
 # compute the IDs of the shoes in the outfits
