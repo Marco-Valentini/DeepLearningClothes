@@ -156,7 +156,7 @@ def objective(params):
     # define the optimizer
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
     criterion = MSELoss()
-    model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
+    model, best_acc_rec = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
                                                                optimizer=optimizer,
                                                                criterion=criterion, n_epochs=n_epochs,
                                                                shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
@@ -168,12 +168,12 @@ def objective(params):
     print("Starting fine tuning the model...")
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
     criterion = MSELoss()
-    model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
+    model, best_hit_ratio = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
                                            criterion=criterion, n_epochs=n_epochs, shoes_IDs=shoes_IDs,
                                            tops_IDs=tops_IDs, accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
                                            device=device)
-    # compute the weighted sum of the losses
-    loss = best_loss_reconstruction + best_loss_fine_tune
+
+    loss = 2 - best_acc_rec - best_hit_ratio
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 

@@ -113,7 +113,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
     train_acc_decoding = []  # keep track of the accuracy of the training phase
     val_acc_decoding = []  # keep track of the accuracy of the validation phase
 
-    valid_loss_min = np.Inf  # track change in validation loss
+    valid_acc_max = 0  # keep track of the maximum validation accuracy
     early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
     best_model = deepcopy(model)
     for epoch in range(n_epochs):
@@ -195,9 +195,11 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                 val_acc_decoding.append(epoch_accuracy_reconstruction)
 
                 # save model if validation loss has decreased
-                if epoch_loss <= valid_loss_min:
-                    print('Validation loss decreased ({:.6f} --> {:.6f}).'.format(valid_loss_min, epoch_loss))
-                    valid_loss_min = epoch_loss  # update the minimum validation loss
+                if epoch_loss >= valid_acc_max:
+                    print('Validation accuracy increased ({:.6f} --> {:.6f}).'.format(valid_acc_max, epoch_accuracy_reconstruction))
+                    print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
+                        epoch_accuracy_reconstruction))
+                    valid_acc_max = epoch_accuracy_reconstruction
                     early_stopping = 0  # reset early stopping counter
                     best_model = deepcopy(model)
                 else:
@@ -215,7 +217,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
     plt.legend()
     plt.title('Accuracy (reconstruction) pre-training')
     plt.show()
-    return best_model, valid_loss_min
+    return best_model, valid_acc_max
 
 
 def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, tops_IDs,
@@ -235,7 +237,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
     train_hit_ratio = []  # keep track of the accuracy of the training phase on the fill in the blank task
     val_hit_ratio = []  # keep track of the accuracy of the validation phase on the fill in the blank task
 
-    valid_loss_min = np.Inf  # track change in validation loss
+    valid_hit_max = 0  # keep track of the maximum validation accuracy
     early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
     best_model = deepcopy(model)
 
@@ -343,10 +345,10 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                 val_hit_ratio.append(epoch_hit_ratio)
 
                 # save model if validation loss has decreased
-                if epoch_loss <= valid_loss_min:
-                    print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
-                        valid_loss_min, epoch_loss))
-                    print('Validation hit ratio fill in the blank of the saved model: {:.6f}'.format(epoch_hit_ratio))
+                if epoch_loss >= valid_hit_max:
+                    print('Validation hit ratio increased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                        valid_hit_max, epoch_hit_ratio))
+                    print('Validation hit ratio in reconstruction of the saved model: {:.6f}'.format(epoch_hit_ratio))
                     # save a checkpoint dictionary containing the model state_dict
                     checkpoint = {'d_model': model.d_model,
                                   'num_encoders': model.num_encoders,
@@ -358,7 +360,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                     torch.save(checkpoint,
                                f"./models/umBERT_FT_NE_{model.num_encoders}_NH_{model.num_heads}_D_{model.dropout:.5f}"
                                f"_LR_{optimizer.param_groups[0]['lr']}_OPT_{type(optimizer).__name__}.pth")
-                    valid_loss_min = epoch_loss
+                    valid_hit_max = epoch_hit_ratio
                     early_stopping = 0  # reset early stopping counter
                     best_model = deepcopy(model)
                 else:
@@ -376,7 +378,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
     plt.legend()
     plt.title('Hit ratio (fill in the blank) fine-tuning')
     plt.show()
-    return best_model, valid_loss_min
+    return best_model, valid_hit_max
 
 
 def test_model(model, device, dataloader, shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs, criterion):

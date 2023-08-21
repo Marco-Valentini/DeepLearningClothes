@@ -141,8 +141,7 @@ class WumBERT(nn.Module):
         train_acc_decoding = []  # keep track of the accuracy of the training phase on the MLM reconstruction task
         val_acc_decoding = []  # keep track of the accuracy of the validation phase on the reconstruction task
 
-        #valid_loss_min = np.Inf  # track change in validation loss
-        valid_acc_max = 0
+        valid_acc_max = 0  # keep track of the maximum accuracy on the validation set
         early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
         best_model = deepcopy(self)
 
@@ -225,7 +224,6 @@ class WumBERT(nn.Module):
                             valid_acc_max, epoch_accuracy_reconstruction))
                         print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
                             epoch_accuracy_reconstruction))
-                        # valid_loss_min = epoch_loss  # update the minimum validation loss
                         valid_acc_max = epoch_accuracy_reconstruction
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)
@@ -262,8 +260,7 @@ class WumBERT(nn.Module):
         train_hit_ratio = []  # keep track of the accuracy of the training phase on the MLM reconstruction task
         val_hit_ratio = []  # keep track of the accuracy of the validation phase on the reconstruction task
 
-        # valid_loss_min = np.Inf  # track change in validation loss
-        valid_hit_max = 0
+        valid_hit_max = 0  # keep track of the maximum validation accuracy
         early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
         best_model = deepcopy(self)
         for epoch in range(epochs):
@@ -378,7 +375,6 @@ class WumBERT(nn.Module):
                         torch.save(checkpoint, f"./checkpoints/WumBERT_FT_NE_{self.num_encoders}_NH_{self.num_heads}"
                                                f"_D_{self.dropout:.5f}_LR_{optimizer.param_groups[0]['lr']}"
                                                f"_OPT_{type(optimizer).__name__}.pth")
-                        # valid_loss_min = epoch_loss  # update the minimum validation loss
                         valid_hit_max = epoch_hit_ratio
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)

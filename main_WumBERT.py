@@ -119,8 +119,8 @@ def objective(params):
     criterion2 = MSELoss()
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
     model, best_hit_ratio = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs,
-                                                             criterion=criterion2, optimizer=optimizer)
-    # compute the weighted sum of the losses
+                                                        criterion=criterion2, optimizer=optimizer)
+
     loss = 2 - best_acc_rec - best_hit_ratio
     # return the validation accuracy on fill in the blank task in the fine-tuning phase
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
