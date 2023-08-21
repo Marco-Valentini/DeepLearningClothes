@@ -195,7 +195,7 @@ def pre_train_reconstruction(model, dataloaders, optimizer, criterion, n_epochs,
                 val_acc_decoding.append(epoch_accuracy_reconstruction)
 
                 # save model if validation loss has decreased
-                if epoch_loss >= valid_acc_max:
+                if epoch_accuracy_reconstruction >= valid_acc_max:
                     print('Validation accuracy increased ({:.6f} --> {:.6f}).'.format(valid_acc_max, epoch_accuracy_reconstruction))
                     print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
                         epoch_accuracy_reconstruction))
@@ -345,7 +345,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                 val_hit_ratio.append(epoch_hit_ratio)
 
                 # save model if validation loss has decreased
-                if epoch_loss >= valid_hit_max:
+                if epoch_hit_ratio >= valid_hit_max:
                     print('Validation hit ratio increased ({:.6f} --> {:.6f}).  Saving model ...'.format(
                         valid_hit_max, epoch_hit_ratio))
                     print('Validation hit ratio in reconstruction of the saved model: {:.6f}'.format(epoch_hit_ratio))

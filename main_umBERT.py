@@ -114,7 +114,7 @@ print("dataloaders for reconstruction task created!")
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 25
+max_evals = 15
 # define the search space
 possible_learning_rates_pre_training = [1e-5, 1e-4, 1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
@@ -141,7 +141,7 @@ baeyes_trials = Trials()
 
 # define the objective function
 def objective(params):
-    print(f"Trainig with params: {params}")
+    print(f"Training with params: {params}")
     n_epochs = 500
     # define the model
     model = umBERT(embeddings=embeddings, embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
@@ -203,7 +203,7 @@ model.to(device)  # move the model to the device
 # define the optimizer
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
 criterion = MSELoss()
-model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
+model, best_acc_rec = pre_train_reconstruction(model=model, dataloaders=dataloaders_reconstruction,
                                                            optimizer=optimizer, criterion=criterion, n_epochs=n_epochs,
                                                            shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                            accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
@@ -211,12 +211,12 @@ model, best_loss_reconstruction = pre_train_reconstruction(model=model, dataload
 # fine-tune on task #3
 # define the optimizer
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
-model, best_loss_fine_tune = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
+model, best_hit_ratio = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
                                        criterion=criterion, n_epochs=n_epochs, shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                        accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs, device=device)
 
-print(f"Best loss reconstruction: {best_loss_reconstruction}")
-print(f"Best loss fine-tune: {best_loss_fine_tune}")
+print(f"Best accuracy reconstruction: {best_acc_rec}")
+print(f"Best hit ratio: {best_hit_ratio}")
 
 # test the model
 test_model(model, device, dataloaders_reconstruction['test'], shoes_IDs, tops_IDs, accessories_IDs, bottoms_IDs,
