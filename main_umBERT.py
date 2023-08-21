@@ -24,17 +24,19 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 device = torch.device('cpu')
 print('Device used: ', device)
 
-# pre-training task #1: Binary Classification (using compatibility dataset)
-# load the compatibility dataset
+# load the dataset
 print('Loading the compatibility dataset...')
 df = pd.read_csv('./reduced_data/reduced_compatibility.csv')
-print('Compatibility dataset loaded!')
-# load the IDs of the images
+
+# remove all the non-compatible outfits
+df = df[df['compatibility'] == 1].drop(columns=['compatibility'])
+df.reset_index(drop=True, inplace=True)
 with open("reduced_data/AE_IDs_list", "r") as fp:
     IDs = json.load(fp)
 # load the embeddings
 with open(f'./reduced_data/AE_embeddings_128.npy', 'rb') as f:
     embeddings = np.load(f)
+print('Dataset loaded')
 
 # compute the IDs of the shoes in the outfits
 shoes_mapping = {i: id for i, id in enumerate(IDs) if id in df['item_1'].unique()}
@@ -69,17 +71,13 @@ embeddings_bottoms = embeddings[bottoms_positions]
 embeddings_dict = {'shoes': embeddings_shoes, 'tops': embeddings_tops, 'accessories': embeddings_accessories,
                    'bottoms': embeddings_bottoms}
 # split the dataset in train, valid and test set (80%, 10%, 10%) in a stratified way on the compatibility column
-df_train, df_test = train_test_split(df, test_size=0.2, stratify=df['compatibility'], random_state=42, shuffle=True)
+df_train, df_test = train_test_split(df, test_size=0.2, random_state=42, shuffle=True)
 df_train.reset_index(drop=True, inplace=True)
 df_test.reset_index(drop=True, inplace=True)
-# only the compatible outfits from the df_train
-df_train_only_compatible = df_train[df_train['compatibility'] == 1].drop(columns='compatibility')
-# only the compatible outfits from the df_test
-df_test_only_compatible = df_test[df_test['compatibility'] == 1].drop(columns='compatibility')
 
 print("create the dataloader for reconstruction task")
-tensor_dataset_train_2 = create_tensor_dataset_from_dataframe(df_train_only_compatible, embeddings, IDs)
-tensor_dataset_test_2 = create_tensor_dataset_from_dataframe(df_test_only_compatible, embeddings, IDs)
+tensor_dataset_train_2 = create_tensor_dataset_from_dataframe(df_train, embeddings, IDs)
+tensor_dataset_test_2 = create_tensor_dataset_from_dataframe(df_test, embeddings, IDs)
 MASK_shoes = torch.randn((1, embeddings.shape[1])) + \
              torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 0, :].mean(dim=0)
 MASK_tops = torch.randn((1, embeddings.shape[1])) + \
@@ -90,20 +88,20 @@ MASK_bottoms = torch.randn((1, embeddings.shape[1])) + \
                torch.cat((tensor_dataset_train_2, tensor_dataset_test_2), dim=0)[:, 3, :].mean(dim=0)
 MASK_dict = {'shoes': MASK_shoes, 'tops': MASK_tops, 'accessories': MASK_acc, 'bottoms': MASK_bottoms}
 
-tensor_dataset_train_2, tensor_dataset_valid_2, df_train_only_compatible, df_valid_only_compatible = train_test_split(
-    tensor_dataset_train_2, df_train_only_compatible, test_size=0.2, random_state=42, shuffle=True)
+tensor_dataset_train_2, tensor_dataset_valid_2, df_train, df_valid = train_test_split(
+    tensor_dataset_train_2, df_train, test_size=0.2, random_state=42, shuffle=True)
 
 print("dataset for reconstruction task created")
 # create the dataloaders
 print("Creating dataloaders for reconstruction task...")
 train_dataloader_pre_training_reconstruction = DataLoader(
-    TensorDataset(tensor_dataset_train_2, torch.LongTensor(df_train_only_compatible.values)),
+    TensorDataset(tensor_dataset_train_2, torch.LongTensor(df_train.values)),
     batch_size=128, shuffle=True, num_workers=0)
 valid_dataloader_pre_training_reconstruction = DataLoader(
-    TensorDataset(tensor_dataset_valid_2, torch.LongTensor(df_valid_only_compatible.values)),
+    TensorDataset(tensor_dataset_valid_2, torch.LongTensor(df_valid.values)),
     batch_size=128, shuffle=True, num_workers=0)
 test_dataloader_pre_training_reconstruction = DataLoader(
-    TensorDataset(tensor_dataset_test_2, torch.LongTensor(df_test_only_compatible.values)),
+    TensorDataset(tensor_dataset_test_2, torch.LongTensor(df_test.values)),
     batch_size=128, shuffle=True, num_workers=0)
 dataloaders_reconstruction = {'train': train_dataloader_pre_training_reconstruction,
                               'val': valid_dataloader_pre_training_reconstruction,
