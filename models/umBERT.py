@@ -89,7 +89,7 @@ class umBERT(nn.Module):
             for j in range(inputs.shape[1]):  # for each outfit in inputs
                 # mask the item at position j
                 masked_positions.append(j)  # add the position of the masked item to the list
-                masked_items.append(inputs[i][j])  # add the masked item to the list
+                masked_items.append(inputs[i][j].clone())  # add the masked item to the list
                 if j == 0:  # if the masked item is a shoe
                     outputs[i * 4 + j][j] = self.MASK_dict['shoes']  # mask the chosen item
                 elif j == 1:  # if the masked item is a top
