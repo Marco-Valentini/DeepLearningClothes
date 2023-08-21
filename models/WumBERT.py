@@ -104,7 +104,7 @@ class WumBERT(nn.Module):
         # mask the one item for each outfit (substitute the ID with the mask ID)
         for i in range(0, input_idx.shape[0], 4):
             for j in range(input_idx.shape[1]):
-                masked_items.append(input_idx[i + j, j].item())
+                masked_items.append(input_idx[i + j, j].clone().item())
                 input_idx[i + j, j] = mask_ids
                 masked_positions.append(j)
         # retrieve the embeddings of the masked items
@@ -141,7 +141,8 @@ class WumBERT(nn.Module):
         train_acc_decoding = []  # keep track of the accuracy of the training phase on the MLM reconstruction task
         val_acc_decoding = []  # keep track of the accuracy of the validation phase on the reconstruction task
 
-        valid_loss_min = np.Inf  # track change in validation loss
+        #valid_loss_min = np.Inf  # track change in validation loss
+        valid_acc_max = 0
         early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
         best_model = deepcopy(self)
 
@@ -219,12 +220,13 @@ class WumBERT(nn.Module):
                     val_acc_decoding.append(epoch_accuracy_reconstruction)
 
                     # save model if validation loss has decreased
-                    if epoch_loss <= valid_loss_min:
-                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
-                            valid_loss_min, epoch_loss))
+                    if epoch_accuracy_reconstruction >= valid_acc_max:
+                        print('Validation accuracy increased ({:.6f} --> {:.6f}).  Saving model ...'.format(
+                            valid_acc_max, epoch_accuracy_reconstruction))
                         print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
                             epoch_accuracy_reconstruction))
-                        valid_loss_min = epoch_loss  # update the minimum validation loss
+                        # valid_loss_min = epoch_loss  # update the minimum validation loss
+                        valid_acc_max = epoch_accuracy_reconstruction
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)
                     else:
@@ -243,7 +245,7 @@ class WumBERT(nn.Module):
         plt.legend()
         plt.title('Accuracy (reconstruction) pre-training')
         plt.show()
-        return best_model, valid_loss_min
+        return best_model, valid_acc_max
 
     def fit_fill_in_the_blank(self, dataloaders, device, epochs, criterion, optimizer):
         """
@@ -260,7 +262,8 @@ class WumBERT(nn.Module):
         train_hit_ratio = []  # keep track of the accuracy of the training phase on the MLM reconstruction task
         val_hit_ratio = []  # keep track of the accuracy of the validation phase on the reconstruction task
 
-        valid_loss_min = np.Inf  # track change in validation loss
+        # valid_loss_min = np.Inf  # track change in validation loss
+        valid_hit_max = 0
         early_stopping = 0  # counter to keep track of the number of epochs without improvements in the validation loss
         best_model = deepcopy(self)
         for epoch in range(epochs):
@@ -279,7 +282,7 @@ class WumBERT(nn.Module):
                 accuracy_bottoms = 0.0
                 hit_ratio = 0.0
                 for inputs in tqdm.tqdm(dataloaders[phase], colour='green'):
-                    inputs = inputs.to(device)  # df is a dataframe of IDs
+                    inputs = inputs.to(device)  # df is a dataframe of internal IDs
                     inputs = inputs.repeat_interleave(4, dim=0)
                     optimizer.zero_grad()
                     with torch.set_grad_enabled(phase == 'train'):
@@ -327,7 +330,7 @@ class WumBERT(nn.Module):
 
                     # compute the hit ratio
                     for i in range(len(pred_masked)):
-                        if masked_items[i] in pred_masked[i]: #TODO in debug controlla questo pred masked che cosa contiene
+                        if masked_items[i] in pred_masked[i]:
                             hit_ratio += 1
 
                 epoch_loss = running_loss / (len(dataloaders[phase].dataset) * 4)
@@ -347,7 +350,7 @@ class WumBERT(nn.Module):
                 print(f'{phase} Accuracy (bottoms): {epoch_accuracy_bottoms}')
                 print(f'{phase} Accuracy (Reconstruction): {epoch_accuracy_reconstruction}')
                 print(f'{phase} Hit ratio: {epoch_hit_ratio}')
-                print(f'{phase} Hit ratio (normalized): {epoch_hit_ratio / len(dataloaders[phase].dataset) * 4}')
+                print(f'{phase} Hit ratio (normalized): {epoch_hit_ratio / (len(dataloaders[phase].dataset) * 4)}')
 
                 if phase == 'train':
                     train_loss.append(epoch_loss)
@@ -357,12 +360,12 @@ class WumBERT(nn.Module):
                     val_hit_ratio.append(epoch_hit_ratio)
 
                     # save model if validation loss has decreased
-                    if epoch_loss <= valid_loss_min:
-                        print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
-                            valid_loss_min,
-                            epoch_loss))
-                        print('Validation accuracy in reconstruction of the saved model: {:.6f}'.format(
-                            epoch_accuracy_reconstruction))
+                    if epoch_hit_ratio >= valid_hit_max:
+                        print('Validation hit ratio increased ({:.2f} --> {:.2f}).  Saving model ...'.format(
+                            valid_hit_max,
+                            epoch_hit_ratio))
+                        print('Validation hit ratio in reconstruction of the saved model: {:.6f}'.format(
+                            epoch_hit_ratio))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.d_model,
                                       'num_encoders': self.num_encoders,
@@ -372,10 +375,11 @@ class WumBERT(nn.Module):
                                       'embeddings': self.embeddings.weight.data.cpu().numpy(),
                                       'model_state_dict': self.state_dict()}
                         # save the checkpoint dictionary to a file
-                        torch.save(checkpoint, f"./models/WumBERT_FT_NE_{self.num_encoders}_NH_{self.num_heads}"
+                        torch.save(checkpoint, f"./checkpoints/WumBERT_FT_NE_{self.num_encoders}_NH_{self.num_heads}"
                                                f"_D_{self.dropout:.5f}_LR_{optimizer.param_groups[0]['lr']}"
                                                f"_OPT_{type(optimizer).__name__}.pth")
-                        valid_loss_min = epoch_loss  # update the minimum validation loss
+                        # valid_loss_min = epoch_loss  # update the minimum validation loss
+                        valid_hit_max = epoch_hit_ratio
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)
                     else:
@@ -394,4 +398,4 @@ class WumBERT(nn.Module):
         plt.legend()
         plt.title('Accuracy (reconstruction) pre-training')
         plt.show()
-        return best_model, valid_loss_min
+        return best_model, valid_hit_max
