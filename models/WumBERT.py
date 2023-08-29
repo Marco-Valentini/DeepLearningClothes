@@ -387,11 +387,11 @@ class WumBERT(nn.Module):
         plt.plot(train_loss, label='train')
         plt.plot(val_loss, label='val')
         plt.legend()
-        plt.title('Loss pre-training (reconstruction task)')
+        plt.title('Loss fill in the blank (fill in the blank task)')
         plt.show()
         plt.plot(train_hit_ratio, label='train')
         plt.plot(val_hit_ratio, label='val')
         plt.legend()
-        plt.title('Accuracy (reconstruction) pre-training')
+        plt.title('Hit ratio (fill in the blank) fine-tuning')
         plt.show()
         return best_model, valid_hit_max
