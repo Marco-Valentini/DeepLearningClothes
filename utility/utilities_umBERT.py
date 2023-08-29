@@ -358,7 +358,7 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                                   'model_state_dict': model.state_dict()}
                     # save the checkpoint dictionary to a file
                     torch.save(checkpoint,
-                               f"./models/umBERT_FT_NE_{model.num_encoders}_NH_{model.num_heads}_D_{model.dropout:.5f}"
+                               f"../checkpoints/umBERT_FT_NE_{model.num_encoders}_NH_{model.num_heads}_D_{model.dropout:.5f}"
                                f"_LR_{optimizer.param_groups[0]['lr']}_OPT_{type(optimizer).__name__}.pth")
                     valid_hit_max = epoch_hit_ratio
                     early_stopping = 0  # reset early stopping counter
