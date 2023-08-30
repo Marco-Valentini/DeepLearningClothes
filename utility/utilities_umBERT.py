@@ -264,6 +264,11 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                 labels_tops = labels[:, 1].to(device)  # move the labels_tops to the device
                 labels_acc = labels[:, 2].to(device)  # move the labels_acc to the device
                 labels_bottoms = labels[:, 3].to(device)  # move the labels_bottoms to the device
+                # repeat each label 4 times
+                labels_shoes = labels_shoes.repeat(4)
+                labels_tops = labels_tops.repeat(4)
+                labels_acc = labels_acc.repeat(4)
+                labels_bottoms = labels_bottoms.repeat(4)
 
                 optimizer.zero_grad()  # zero the parameter gradients
 
@@ -309,12 +314,16 @@ def fine_tune(model, dataloaders, optimizer, criterion, n_epochs, shoes_IDs, top
                                                                   device, topk=10)
 
                 masked_IDs = []
-
                 for i in range(len(labels_shoes)):
-                    masked_IDs.append(labels_shoes[i].item())
-                    masked_IDs.append(labels_tops[i].item())
-                    masked_IDs.append(labels_acc[i].item())
-                    masked_IDs.append(labels_bottoms[i].item())
+                    if masked_positions[i] == 0:
+                        masked_IDs.append(labels_shoes[i].item())
+                    if masked_positions[i] == 1:
+                        masked_IDs.append(labels_tops[i].item())
+                    if masked_positions[i] == 2:
+                        masked_IDs.append(labels_acc[i].item())
+                    if masked_positions[i] == 3:
+                        masked_IDs.append(labels_bottoms[i].item())
+
                 for i, id in enumerate(masked_IDs):
                     if id in top_k_predictions[i][0]:
                         hit_ratio += 1
