@@ -281,14 +281,16 @@ class WumBERT(nn.Module):
                 for inputs in tqdm.tqdm(dataloaders[phase], colour='green'):
                     inputs = inputs.to(device)  # df is a dataframe of internal IDs
                     inputs = inputs.repeat_interleave(4, dim=0)
+                    inputs_copy = deepcopy(inputs)
                     optimizer.zero_grad()
                     with torch.set_grad_enabled(phase == 'train'):
                         rec_shoes, rec_tops, rec_acc, rec_bottoms, \
                             masked_logits, masked_positions, masked_items = self.forward_with_masking(inputs)
-                        loss = criterion(rec_shoes, self.embeddings(inputs)[:, 0, :]) \
-                               + criterion(rec_tops, self.embeddings(inputs)[:, 1, :]) \
-                               + criterion(rec_acc, self.embeddings(inputs)[:, 2, :]) \
-                               + criterion(rec_bottoms, self.embeddings(inputs)[:, 3, :])
+                        # controlla che questi input non contengano la maschera se no si sta allenando a riprodurre anche quella
+                        loss = criterion(rec_shoes, self.embeddings(inputs_copy)[:, 0, :]) \
+                               + criterion(rec_tops, self.embeddings(inputs_copy)[:, 1, :]) \
+                               + criterion(rec_acc, self.embeddings(inputs_copy)[:, 2, :]) \
+                               + criterion(rec_bottoms, self.embeddings(inputs_copy)[:, 3, :])
                         if phase == 'train':
                             loss.backward()
                             optimizer.step()
@@ -320,10 +322,10 @@ class WumBERT(nn.Module):
                                                                 topk=10)
 
                     # update the accuracy of the reconstruction task
-                    accuracy_shoes += np.sum(np.array(pred_shoes) == inputs[:, 0].cpu().numpy())
-                    accuracy_tops += np.sum(np.array(pred_tops) == inputs[:, 1].cpu().numpy())
-                    accuracy_acc += np.sum(np.array(pred_acc) == inputs[:, 2].cpu().numpy())
-                    accuracy_bottoms += np.sum(np.array(pred_bottoms) == inputs[:, 3].cpu().numpy())
+                    accuracy_shoes += np.sum(np.array(pred_shoes) == inputs_copy[:, 0].cpu().numpy())
+                    accuracy_tops += np.sum(np.array(pred_tops) == inputs_copy[:, 1].cpu().numpy())
+                    accuracy_acc += np.sum(np.array(pred_acc) == inputs_copy[:, 2].cpu().numpy())
+                    accuracy_bottoms += np.sum(np.array(pred_bottoms) == inputs_copy[:, 3].cpu().numpy())
 
                     # compute the hit ratio
                     for i in range(len(pred_masked)):
