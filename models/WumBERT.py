@@ -363,7 +363,7 @@ class WumBERT(nn.Module):
                         print('Validation hit ratio increased ({:.2f} --> {:.2f}).  Saving model ...'.format(
                             valid_hit_max,
                             epoch_hit_ratio))
-                        print('Validation hit ratio in reconstruction of the saved model: {:.6f}'.format(
+                        print('Validation hit ratio in fill in the blank of the saved model: {:.6f}'.format(
                             epoch_hit_ratio))
                         # save a checkpoint dictionary containing the model state_dict
                         checkpoint = {'d_model': self.d_model,
@@ -380,9 +380,10 @@ class WumBERT(nn.Module):
                         valid_hit_max = epoch_hit_ratio
                         early_stopping = 0  # reset early stopping counter
                         best_model = deepcopy(self)
-                    else:
-                        early_stopping += 1  # increment early stopping counter
-            if early_stopping == 10:
+                    elif epoch > 5 and val_hit_ratio[-1] < val_hit_ratio[-2] and val_hit_ratio[-2] < val_hit_ratio[-3] and \
+                            val_hit_ratio[-3] < val_hit_ratio[-4] and val_hit_ratio[-4] < val_hit_ratio[-5]:
+                        early_stopping = 5  # increment early stopping counter
+            if early_stopping == 5:
                 print('Early stopping the training')
                 break
         # plot the loss and the accuracy of the reconstruction task
