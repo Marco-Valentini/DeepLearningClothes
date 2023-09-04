@@ -197,7 +197,7 @@ print(f"Best hyperparameters found: {params}")
 model = umBERT(embeddings=embeddings, embeddings_dict=embeddings_dict, num_encoders=params['num_encoders'],
                num_heads=params['num_heads'], dropout=params['dropout'], MASK_dict=MASK_dict)
 model.to(device)  # move the model to the device
-# pre-train on task #2
+# pre-train on task #1
 # define the optimizer
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
 criterion = MSELoss()
@@ -206,7 +206,7 @@ model, best_acc_rec = pre_train_reconstruction(model=model, dataloaders=dataload
                                                            shoes_IDs=shoes_IDs, tops_IDs=tops_IDs,
                                                            accessories_IDs=accessories_IDs, bottoms_IDs=bottoms_IDs,
                                                            device=device, )
-# fine-tune on task #3
+# fine-tune on task #2
 # define the optimizer
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
 model, best_hit_ratio = fine_tune(model=model, dataloaders=dataloaders_reconstruction, optimizer=optimizer,
