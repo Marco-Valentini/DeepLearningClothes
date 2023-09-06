@@ -56,9 +56,11 @@ Once the dataset has been downloaded and added to the root folder of the project
   The Polyvore outfits contains a lot of category of items, this script takes only the items belonging to the categories shoes, tops, accessories and bottoms and create a new catalogue of items.
 * **1_0_compatibility_data_preparation.py**:
   This script starting from txt files about compatible outfits (compatibility_<train,valid,test>.txt), obtain a dataframe containing outfit composed of 4 items belonging to the categories ['tops','bottoms','accessories','shoes'] and save them into a csv file containing the item IDs.
-* **1_1_create_catalogue_dataset.py**:
+* **1_2_augment_reduced_data**:
+  This script takes the reduced catalogue of outfits and augment it by create new outfits by replacing the items in the outfit with the first five closest items (including the item itself)
+* **1_2_create_catalogue_dataset.py**:
   This script takes images from a catalogue and move them in the folder "dataset_catalogue". Note that the folder "dataset_catalogue" must be created before running this script.
-* **1_2_split_and_organize_dataset.py**:
+* **1_3_split_and_organize_dataset.py**:
   This script takes a dataset of images, splits it into train, val and test sets and organizes them in folders with the name of the label associated with each image.
 * **2_AE_compute_embeddings.py**:
   This script obtains the embeddings of the dataset using the trained model trained_fashion_VAE_resnet18_128.pth in the "checkpoints" folder.
