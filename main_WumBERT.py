@@ -30,11 +30,13 @@ print('Device used: ', device)
 
 # load the dataset
 print('Loading the compatibility dataset...')
-df = pd.read_csv('./reduced_data/reduced_compatibility.csv')
+df = pd.read_csv('./reduced_data/reduced_compatibility_augmented.csv')
 
-# remove all the non-compatible outfits
-df = df[df['compatibility'] == 1].drop(columns=['compatibility'])
+
+label = df['label'].values
+df.drop(columns=['label'], inplace=True)
 df.reset_index(drop=True, inplace=True)
+
 with open("reduced_data/AE_IDs_list", "r") as fp:
     IDs = json.load(fp)
 # load the embeddings
@@ -53,14 +55,14 @@ bottoms_idx = {total_mapping_reverse[i] for i in df['item_4'].unique()}
 
 # split the outfits in train and test
 df = df.applymap(lambda x: total_mapping_reverse[x]).values
-df_train, df_test = train_test_split(df, test_size=0.2,
-                                     random_state=42)
-df_train, df_val = train_test_split(df_train, test_size=0.2, random_state=42)
+df_train, df_test, label_train, label_test = train_test_split(df, label, test_size=0.2,
+                                     random_state=42, stratify=label)
+df_train, df_val = train_test_split(df_train, test_size=0.2, random_state=42, stratify=label_train)
 
 # create the dataloader
-train_loader = DataLoader(df_train, batch_size=32, shuffle=True, num_workers=0)
-val_loader = DataLoader(df_val, batch_size=32, shuffle=True, num_workers=0)
-test_loader = DataLoader(df_test, batch_size=32, shuffle=True, num_workers=0)
+train_loader = DataLoader(df_train, batch_size=128, shuffle=True, num_workers=0)
+val_loader = DataLoader(df_val, batch_size=128, shuffle=True, num_workers=0)
+test_loader = DataLoader(df_test, batch_size=128, shuffle=True, num_workers=0)
 
 dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader}
 
@@ -68,7 +70,7 @@ dataloaders = {'train': train_loader, 'val': val_loader, 'test': test_loader}
 ### hyperparameters tuning ###
 print('Starting hyperparameters tuning...')
 # define the maximum number of evaluations
-max_evals = 10
+max_evals = 5
 # define the search space
 possible_learning_rates_pre_training = [1e-5, 1e-4, 1e-3]
 possible_learning_rates_fine_tuning = [1e-5, 1e-4, 1e-3]
@@ -80,10 +82,10 @@ possible_optimizers = [Adam, AdamW]
 space = {
     'lr1': hp.choice('lr1', possible_learning_rates_pre_training),
     'lr2': hp.choice('lr2', possible_learning_rates_fine_tuning),
-    'dropout': hp.uniform('dropout', 0, 0.2),
+    'dropout': hp.uniform('dropout', 0, 0.3),
     'num_encoders': hp.choice('num_encoders', possible_n_encoders),
     'num_heads': hp.choice('num_heads', possible_n_heads),
-    'weight_decay': hp.uniform('weight_decay', 0, 0.01),
+    'weight_decay': hp.uniform('weight_decay', 0, 0.1),
     'optimizer': hp.choice('optimizer', possible_optimizers),
 }
 
@@ -107,10 +109,11 @@ def objective(params):
     # pre-train on task #1 reconstruction
     # define the optimizer
     print("Starting pre-training the model on task reconstruction...")
-    n_epochs = 500
+    n_epochs1 = 30
+    n_epochs2 = 100
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
     criterion1 = MSELoss()
-    model, best_acc_rec = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs,
+    model, best_acc_rec = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs1,
                                                                criterion=criterion1, optimizer=optimizer)
 
     # fine-tune on task #2
@@ -118,7 +121,7 @@ def objective(params):
     print("Starting fine tuning the model...")
     criterion2 = MSELoss()
     optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
-    model, best_hit_ratio = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs,
+    model, best_hit_ratio = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs2,
                                                         criterion=criterion2, optimizer=optimizer)
 
     loss = 2 - best_acc_rec - best_hit_ratio
@@ -150,13 +153,14 @@ model.to(device)  # move the model to the device
 
 # pre-train on task #1 reconstruction
 # define the optimizer
-n_epochs = 500
+n_epochs = 30
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr1'], weight_decay=params['weight_decay'])
 criterion1 = MSELoss()
 model, best_acc_rec = model.fit_reconstruction(dataloaders=dataloaders, device=device, epochs=n_epochs,
                                                            criterion=criterion1, optimizer=optimizer)
 # fine-tune on task fill in the  blank
 # define the optimizer
+n_epochs = 100
 optimizer = params['optimizer'](params=model.parameters(), lr=params['lr2'], weight_decay=params['weight_decay'])
 criterion2 = MSELoss()
 model, best_hit_ratio = model.fit_fill_in_the_blank(dataloaders=dataloaders, device=device, epochs=n_epochs,
